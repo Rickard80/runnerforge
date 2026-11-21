@@ -1,0 +1,1146 @@
+import {
+  ATTRIBUTES,
+  LIMITS,
+  LEVELS,
+  SKILLS,
+  CONCEPTS
+} from './data.js';
+import {
+  CATALOG
+} from './catalog.js';
+import {
+  KEYWORDS,
+  DISPOSITIONS,
+  STREETWISE_CUES
+} from './personality.js';
+import {
+  SPECIALIZATIONS
+} from './specializations.js';
+import {
+  money,
+  pick,
+  blank,
+  calc,
+  maxed,
+  priceSkill
+} from './model.js';
+import './components/field.js';
+import './components/panel.js';
+import './components/catalog-item.js';
+import './components/print-sheet.js';
+import './components/budget.js';
+import './components/portrait-editor.js';
+const STORE = 'anarchy2.characters.v1';
+const normalizeName = value => String(value ?? '').trim().toLocaleLowerCase();
+const alphabetical = (a, b) => String(a.name ?? a).localeCompare(String(b.name ?? b), undefined, {
+  sensitivity: 'base'
+});
+const sortedSkills = skills => [...skills].sort((a, b) => (+b.rating || 0) - (+a.rating || 0) || alphabetical(a, b));
+const sortedAmps = amps => [...amps].sort(alphabetical);
+const rangedWeapon = item => {
+  if (item.type !== 'weapon') return false;
+  const record = CATALOG.weapon?.find(w => normalizeName(w.name) === normalizeName(item.name));
+  const group = String(record?.group ?? '').toLowerCase();
+  if (group.includes('melee')) return false;
+  if (/(ranged|pistol|rifle|shotgun|smg|machine gun|launcher|bow|crossbow|throw)/.test(group)) return true;
+  return /(pistol|rifle|shotgun|smg|machine gun|launcher|bow|crossbow|taser|revolver)/i.test(item.name);
+};
+const meleeWeapon = item => item.type === 'weapon' && !rangedWeapon(item);
+const sortedItems = items => [...items].sort((a, b) => {
+  const rank = item => rangedWeapon(item) ? 0 : meleeWeapon(item) ? 1 : item.type === 'armor' ? 2 : item.type ===
+    'spell' ? 3 : 4;
+  return rank(a) - rank(b) || alphabetical(a, b);
+});
+const uniqueByName = items => items.filter((item, index, arr) => arr.findIndex(other => normalizeName(other.name) ===
+  normalizeName(item.name)) === index);
+
+const getSpecializations = skill => Array.isArray(skill.specializations) ?
+  skill.specializations.map(v => String(v || '').trim()) :
+  String(skill.specialization || '').split(',').map(v => v.trim()).filter(Boolean);
+const specializationLabel = skill => getSpecializations(skill).filter(Boolean).join(', ');
+const isFreeCommlink = name => /commlink/i.test(name);
+const gearPool = (type, used) => (CATALOG[type] || []).filter(v => !used.has(normalizeName(v.name)) && !(type ===
+  'equipment' && isFreeCommlink(v.name)));
+const pickUnique = (pool, count) => {
+  const copy = [...pool],
+    out = [];
+  while (copy.length && out.length < count) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+  return out;
+};
+// Avoid repeated template stems or endings within a character's generated personality.
+const personalityParts = text => {
+  const value = String(text).trim();
+  const cue = value.split(/\s+—\s*/);
+  if (cue.length > 1) return [cue[0].trim(), cue.slice(1).join(' — ').trim()];
+  const disposition = value.match(
+    /^(.*?)\s+(even when the payout is tempting|especially when everyone else is panicking|unless the facts prove otherwise|before the situation turns ugly)\.?$/i
+    );
+  return disposition ? [disposition[1].trim(), disposition[2].trim()] : [value, ''];
+};
+const pickDistinctPersonality = (pool, count) => {
+  const available = [...new Set(pool)];
+  const selected = [],
+    first = new Set(),
+    second = new Set();
+  while (selected.length < count) {
+    const choices = available.filter(value => {
+      const [a, b] = personalityParts(value);
+      return !first.has(normalizeName(a)) && (!b || !second.has(normalizeName(b)))
+    });
+    if (!choices.length) break;
+    const value = pick(choices),
+      [a, b] = personalityParts(value);
+    selected.push(value);
+    first.add(normalizeName(a));
+    if (b) second.add(normalizeName(b));
+    available.splice(available.indexOf(value), 1);
+  }
+  return selected;
+};
+
+
+export function upgradeGeneratedAttribute(s, target = LEVELS[s.level]) {
+  if (calc(s).remaining < 20000) return false;
+  const linked = new Set(s.skills.map(skill => skill.attribute));
+  const candidates = ATTRIBUTES.filter((attribute, index) => {
+    if (!linked.has(attribute)) return false;
+    const value = Number(s.attributes[attribute]) || 0;
+    const maximum = LIMITS[s.metatype][index];
+    if (value >= maximum) return false;
+    if (value + 1 === maximum && maxed(s) >= target.max) return false;
+    const price = value + 1 === maximum ? 20000 : 10000;
+    return calc(s).remaining >= price;
+  });
+  if (!candidates.length) return false;
+  const minimum = Math.min(...candidates.map(attribute => Number(s.attributes[attribute])));
+  const chosen = pick(candidates.filter(attribute => Number(s.attributes[attribute]) === minimum));
+  s.attributes[chosen]++;
+  return true;
+}
+
+export class AnarchyBuilder extends HTMLElement {
+  constructor() {
+    super();
+    this.s = blank();
+    this.tab = 'identity';
+    this.notice = '';
+    this.catalogSearch = '';
+    this.catalogType = 'all';
+    this.loadedName = null;
+  }
+  connectedCallback() {
+    this.render();
+  }
+  get saves() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE) || '{}')
+    } catch {
+      return {}
+    }
+  }
+  set saves(v) {
+    localStorage.setItem(STORE, JSON.stringify(v))
+  }
+  update() {
+    this.render();
+  }
+  set(path, value) {
+    const [key, index, field] = path.split('.');
+    if (index !== undefined) {
+      this.s[key][+index][field] = value
+    } else this.s[key] = value;
+    this.update()
+  }
+  add(key, obj) {
+    if (key === 'skills' && this.s.skills.length >= 11) return this.notify('Maximum 11 skills.');
+    if (key === 'amps' && this.s.amps.length >= 11) return this.notify('Maximum 11 Shadow Amps.');
+    if (key === 'skills' && this.s.skills.some(x => normalizeName(x.name) === normalizeName(obj.name))) return this
+      .notify('Skill already selected.');
+    if (key === 'amps' && this.s.amps.some(x => normalizeName(x.name) === normalizeName(obj.name))) return this
+      .notify('Shadow Amp already selected.');
+    if (key === 'items' && obj.type === 'equipment' && this.s.items.filter(x => x.type === 'equipment').length >= 4)
+      return this.notify('Maximum 4 equipment items.');
+    if (key === 'items' && obj.type === 'equipment' && isFreeCommlink(obj.name)) return this.notify(
+      'Commlinks are included for free and cannot be purchased.');
+    if (key === 'items' && obj.type === 'weapon' && this.s.items.filter(x => x.type === 'weapon').length >= 4)
+    return this.notify('Maximum 4 weapons.');
+    this.s[key].push(obj);
+    this.update()
+  }
+  remove(key, i) {
+    this.s[key].splice(i, 1);
+    this.update()
+  }
+  notify(msg) {
+    this.notice = msg;
+    this.update()
+  }
+  clearNotice() {
+    if (!this.notice) return;
+    this.notice = '';
+    const toast = this.querySelector('.toast');
+    if (toast) {
+      toast.classList.add('toast-exit');
+      toast.addEventListener('animationend', () => toast.remove(), {
+        once: true
+      })
+    }
+  }
+  deleteLoaded() {
+    if (!this.loadedName) return;
+    const name = this.loadedName;
+    if (!confirm('Delete saved character ' + name + '? This cannot be undone.')) return;
+    const all = this.saves;
+    delete all[name];
+    this.saves = all;
+    this.loadedName = null;
+    this.notify('Deleted saved character ' + name)
+  }
+  save() {
+    if (!this.s.name.trim()) return this.notify('Enter a street name before saving.');
+    try {
+      let all = this.saves;
+      all[this.s.name.trim()] = structuredClone(this.s);
+      this.saves = all;
+      this.loadedName = this.s.name.trim();
+      this.notify('Saved locally: ' + this.s.name)
+    } catch (e) {
+      this.notify('Save failed: browser storage may be full. Export JSON to preserve this character.')
+    }
+  }
+  load(name) {
+    if (!name) return;
+    const saved = this.saves[name];
+    if (!saved) return;
+    this.s = structuredClone(saved);
+    this.loadedName = name;
+    this.notify('Loaded ' + name)
+  }
+  exportJSON() {
+    this.download(new Blob([JSON.stringify(this.s, null, 2)], {
+      type: 'application/json'
+    }), (this.s.name || 'runner') + '.json')
+  }
+  download(blob, name) {
+    const u = URL.createObjectURL(blob),
+      a = document.createElement('a');
+    a.href = u;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(u), 1500)
+  }
+  async importJSON(file) {
+    if (!file) return;
+    try {
+      const v = JSON.parse(await file.text());
+      if (!v.attributes || !Array.isArray(v.skills)) throw Error('Not a character file');
+      this.s = {
+        ...blank(),
+        ...v
+      };
+      this.loadedName = null;
+      this.notify('Imported ' + (v.name || 'unnamed character'))
+    } catch (e) {
+      this.notify('Import failed: ' + e.message)
+    }
+  }
+  portrait(file) {
+    if (!file) return;
+    const editor = document.createElement('runner-portrait-editor');
+    editor.addEventListener('portrait-ready', event => {
+      this.s.portrait = event.detail;
+      this.update()
+    });
+    document.body.append(editor);
+    editor.open(file)
+  }
+  randomize() {
+    this.loadedName = null;
+    const s = blank();
+    const options = CONCEPTS.filter(c => (this.s.role === 'Any' || c[1] === this.s.role) && (this.s.concept ===
+      'Random' || c[0] === this.s.concept));
+    if (!options.length) return this.notify('No concept matches that role family.');
+    const bag = options.flatMap(c => Array(c[5]).fill(c));
+    const c = pick(bag);
+    s.level = this.s.level;
+    s.role = this.s.role;
+    s.concept = this.s.concept;
+    s.personality = this.s.personality;
+    s.metatype = pick(['Human', 'Human', 'Elf', 'Dwarf', 'Ork', 'Troll']);
+    s.edge = LIMITS[s.metatype][5];
+    s.name = c[0] + ' ' + Math.floor(Math.random() * 90 + 10);
+    const target = LEVELS[s.level];
+    const pri = c[2],
+      limit = LIMITS[s.metatype];
+    const attPoints = s.level === 'Ganger' ? 12 : s.level === 'Runner' ? 14 : 16;
+    let attempts = 0;
+    while (ATTRIBUTES.reduce((n, a) => n + s.attributes[a], 0) < attPoints && attempts++ < 150) {
+      const weights = ATTRIBUTES.flatMap((a, i) => Array(a === pri ? 8 : a === 'Willpower' ? 3 : 2).fill(a));
+      const a = pick(weights),
+        j = ATTRIBUTES.indexOf(a);
+      if (s.attributes[a] >= limit[j]) continue;
+      if (s.attributes[a] + 1 === limit[j] && maxed(s) >= Math.max(0, target.max - 1)) continue;
+      s.attributes[a]++
+    }
+    const count = s.level === 'Ganger' ? 24 : s.level === 'Runner' ? 30 : 36;
+    let pool = 0;
+    const focus = c[3],
+      extras = SKILLS.map(x => x[0]);
+    let skillAttempts = 0;
+    while (pool < count && skillAttempts++ < 2000) {
+      let n = pick(Math.random() < .90 ? focus : extras);
+      let row = s.skills.find(x => x.name === n);
+      if (!row) {
+        if (s.skills.length >= 11) continue;
+        row = {
+          name: n,
+          rating: 3,
+          attribute: SKILLS.find(x => x[0] === n)?.[1] || 'Logic',
+          specialization: ''
+        };
+        s.skills.push(row);
+        pool += 3;
+        continue
+      }
+      if (row.rating >= target.skill) continue;
+      row.rating++;
+      pool++
+    }
+    if (s.personality) {
+      s.keywords = [s.metatype, c[0], pick(KEYWORDS), pick(
+        ['Smog-choked Aubur', 'Gilded Bellevue', 'Neon Downtown', 'Salt-crusted Everett', 'Scorched Barrens', 'Lawless Redmond', 'Striving Renton', 'Agri-corp Snohomish', 'Rain-slicked Tacoma'])];
+      s.dispositions = pickDistinctPersonality(DISPOSITIONS, 2);
+      s.cues = pickDistinctPersonality(STREETWISE_CUES, 2)
+    }
+    const magic = c[1] === 'Magician';
+    const ampCount = magic ? 3 : 4;
+    const ampChoices = [...new Set([...(c[4] || []), 'Enhanced Senses', 'Contacts', 'Protective Focus', 'Smartlink',
+      'Reaction Booster'
+    ])];
+    for (let i = 0; i < ampCount && ampChoices.length; i++) {
+      const index = i === 0 ? 0 : Math.floor(Math.random() * ampChoices.length);
+      const name = ampChoices.splice(index, 1)[0];
+      s.amps.push({
+        name,
+        rating: i === 0 ? 4 : 2,
+        notes: 'Review Amp components and rating on pp. 58–62.'
+      })
+    } // Equipment, armor, weapons and spells are separate categories and limits.
+    const used = new Set();
+    const addCatalog = (type, entry) => {
+      if (!entry || used.has(normalizeName(entry.name))) return;
+      used.add(normalizeName(entry.name));
+      s.items.push({
+        name: entry.name,
+        type,
+        cost: entry.cost,
+        description: entry.group || ''
+      })
+    };
+    const armorChoices = CATALOG.armor || [];
+    addCatalog('armor', pick(armorChoices));
+    const ranged = gearPool('weapon', used).filter(v => rangedWeapon({
+      type: 'weapon',
+      name: v.name
+    }));
+    const melee = gearPool('weapon', used).filter(v => !rangedWeapon({
+      type: 'weapon',
+      name: v.name
+    }));
+    // Prefer concept-relevant weapons but never force Heavy pistol.
+    const firearmFocus = c[3].includes('Firearms') || c[3].includes('Heavy Weapons');
+    const weaponCount = magic ? 1 : (firearmFocus ? 2 : 1);
+    const chosenWeapons = pickUnique(firearmFocus ? ranged : melee, weaponCount);
+    if (!chosenWeapons.length) chosenWeapons.push(...pickUnique(gearPool('weapon', used), 1));
+    chosenWeapons.forEach(v => addCatalog('weapon', v));
+    if (magic) {
+      const spells = gearPool('spell', used);
+      pickUnique(spells, Math.min(2, spells.length)).forEach(v => addCatalog('spell', v))
+    }
+    const equipmentPool = gearPool('equipment', used);
+    const equipmentCount = Math.min(4, Math.max(1, Math.floor(Math.random() * 4) + 1));
+    pickUnique(equipmentPool, equipmentCount).forEach(v => addCatalog('equipment', v));
+    s.skills = sortedSkills(uniqueByName(s.skills)).slice(0, 11);
+    s.amps = sortedAmps(uniqueByName(s.amps)).slice(0, 11);
+    s.items = sortedItems(s.items); // Attribute growth takes priority over discretionary Shadow Amp upgrades.
+    // At 20,000¥ or more, spend on the lowest affordable attribute linked to a skill.
+    // Keep applying eligible upgrades while the character still has at least 20,000¥.
+    // A single increase may cost only 10,000¥, leaving enough for another increase.
+    this.lastGeneratedAttributeUpgrade = false;
+    let attributeUpgradeAttempts = 0;
+    while (calc(s).remaining >= 20000 && attributeUpgradeAttempts++ < ATTRIBUTES.length * 8) {
+      if (!upgradeGeneratedAttribute(s, target)) break;
+      this.lastGeneratedAttributeUpgrade = true;
+    }
+    let ampUpgradeAttempts = 0;
+    while (calc(s).remaining >= 5000 && ampUpgradeAttempts++ < 35) {
+      const eligible = s.amps.filter(amp => amp.rating < 6);
+      if (!eligible.length) break;
+      pick(eligible).rating++;
+    }
+    s.skills = sortedSkills(s.skills);
+    s.amps = sortedAmps(s.amps);
+    s.items = sortedItems(s.items);
+    this.s = s;
+    this.notify('Generated ' + c[0] + ' · ' + s.metatype + ' · ' + s.level +
+      '; review rule warnings and Amp effects.');
+  }
+
+
+  addSpecialization(i, value) {
+    const chosen = String(value || '').trim();
+    if (!chosen) return;
+    const occupied = this.s.skills.flatMap(getSpecializations).some(v => normalizeName(v) === normalizeName(chosen));
+    if (occupied) return this.notify('Specialization already selected.');
+    const row = this.s.skills[i];
+    row.specializations = [...getSpecializations(row).filter(Boolean), chosen];
+    row.specialization = '';
+    this.update();
+  }
+  removeSpecialization(i, index) {
+    const row = this.s.skills[i];
+    row.specializations = getSpecializations(row).filter((_, j) => j !== index);
+    row.specialization = '';
+    this.update();
+  }
+  specializationPicker(skill, index) {
+    const occupied = new Set(this.s.skills.flatMap(getSpecializations).map(normalizeName));
+    const options = (SPECIALIZATIONS[skill.name] || [])
+      .filter(value => !occupied.has(normalizeName(value)))
+      .sort((a, b) => a.localeCompare(b))
+      .map(value => this.specializationOptionHTML(value))
+      .join('');
+
+    return [
+      '<div class="specialization-picker">',
+        '<label class="field"><span>Specialization</span>',
+          `<select data-add-specialization="${index}">`,
+            '<option value="">Add…</option>',
+            options,
+            '<option value="__custom__">Custom…</option>',
+          '</select>',
+        '</label>',
+        `<input class="specialization-custom" data-custom-for="${index}" placeholder="Custom specialization" aria-label="Custom specialization" hidden>`,
+        `<button type="button" class="small" data-confirm-custom="${index}" hidden>Add</button>`,
+      '</div>'
+    ].join('');
+  }
+
+  specializationOptionHTML(value) {
+    const label = this.esc(value);
+    return `<option value="${label}">${label}</option>`;
+  }
+
+  specializationBadges(skill, index) {
+    const badges = getSpecializations(skill).filter(Boolean)
+      .map((value, badgeIndex) => this.specializationBadgeHTML(value, index, badgeIndex))
+      .join('');
+    return badges ? `<div class="specialization-badges">${badges}</div>` : '';
+  }
+
+  specializationBadgeHTML(value, skillIndex, badgeIndex) {
+    const label = this.esc(value);
+    return [
+      `<span class="specialization-badge">${label}`,
+        `<button type="button" aria-label="Remove ${label}" title="Remove specialization" data-remove-specialization="${skillIndex}:${badgeIndex}">×</button>`,
+      '</span>'
+    ].join('');
+  }
+
+  field(label, path, type = 'text', options = null) {
+    const bits = path.split('.');
+    const v = bits.length === 3 ? this.s[bits[0]][+bits[1]][bits[2]] : bits.length === 2 ? this.s[bits[0]][bits[1]] :
+      this.s[path];
+    const optionAttribute = options ? this.fieldOptionsAttribute(options) : '';
+    return `<runner-field label="${this.esc(label)}" path="${this.esc(path)}" value="${this.esc(v ?? '')}" kind="${type}" ${optionAttribute}></runner-field>`;
+  }
+
+  fieldOptionsAttribute(options) {
+    const serialized = JSON.stringify(options).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll("'", '&#39;');
+    return `options='${serialized}'`;
+  }
+
+  esc(v) {
+    return String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"',
+      '&quot;')
+  }
+
+  section(title, content) {
+    return `<runner-panel heading="${this.esc(title)}">${content}</runner-panel>`;
+  }
+
+  render() {
+    const budget = calc(this.s);
+    const tabs = ['identity', 'attributes', 'skills', 'magic', 'gear', 'personality', 'print'];
+    const names = Object.keys(this.saves).sort();
+    const body = this.tabContentHTML();
+
+    this.innerHTML = this.layoutHTML(names, tabs, budget, body);
+    this.bind();
+    if (this.tab === 'print') this.drawSheet();
+  }
+
+  tabContentHTML() {
+    switch (this.tab) {
+      case 'identity':
+        return this.section('Identity & generation', this.identityHTML()) + this.section('Portrait', this.portraitHTML());
+      case 'attributes':
+        return this.section('Attributes', this.attributesHTML());
+      case 'skills':
+        return this.section('Skills', this.skillsHTML());
+      case 'magic':
+        return this.section('Shadow Amps', this.ampsHTML());
+      case 'gear':
+        return this.section('Weapons, spells, armor & equipment', this.gearHTML());
+      case 'personality':
+        return this.section('Personality & background', this.personalityHTML());
+      case 'print':
+        return this.section('Exact-template print preview', this.printPreviewHTML());
+      default:
+        return '';
+    }
+  }
+
+  identityHTML() {
+    const { role, personality } = this.s;
+    const roles = ['Any', 'Fighter', 'Magician', 'Technologist', 'Specialist', 'Social'];
+    const concepts = ['Random', ...CONCEPTS.filter(([, family]) => role === 'Any' || family === role).map(([name]) => name)];
+
+    return [
+      '<div class="formgrid">',
+        this.field('Street name', 'name'),
+        this.field('Metatype', 'metatype', 'text', Object.keys(LIMITS)),
+        this.field('Level of play', 'level', 'text', Object.keys(LEVELS)),
+        this.field('Role family', 'role', 'text', roles),
+        this.field('Concept', 'concept', 'text', concepts),
+      '</div>',
+      `<label class="check"><input type="checkbox" data-check="personality" ${personality ? 'checked' : ''}> Generate personality</label>`,
+      '<div class="actions">',
+        '<button data-action="generate" class="primary">Generate character</button>',
+        '<button data-action="reset">New blank character</button>',
+      '</div>',
+      '<p class="muted">The selected role and concept constrain the generator. New skills begin at rating 3.</p>'
+    ].join('');
+  }
+
+  portraitHTML() {
+    const { portrait } = this.s;
+    return [
+      '<input type="file" id="portrait" accept="image/*">',
+      '<p class="muted">Uploaded image is stored inside character JSON and placed on the print sheet.</p>',
+      portrait ? this.portraitControlsHTML(portrait) : ''
+    ].join('');
+  }
+
+  portraitControlsHTML(portrait) {
+    return [
+      `<img class="portrait-preview" src="${portrait}" alt="Portrait">`,
+      '<button data-action="editportrait">Adjust portrait</button>',
+      '<button data-action="clearportrait">Remove portrait</button>'
+    ].join('');
+  }
+
+  attributesHTML() {
+    const limits = LIMITS[this.s.metatype];
+    const fields = ATTRIBUTES.map((attribute, index) =>
+      this.field(`${attribute} (max ${limits[index]})`, `attributes.${attribute}`, 'number'));
+
+    return [
+      '<div class="formgrid">',
+        ...fields,
+        this.field(`Edge (metatype baseline ${limits[5]})`, 'edge', 'number'),
+        this.field('Essence (optional)', 'essence'),
+      '</div>',
+      '<p class="muted">The final point at the metatype maximum costs 20,000¥. Metatype and level restrictions warn but never block edits.</p>'
+    ].join('');
+  }
+
+  skillsHTML() {
+    const { skills, knowledge } = this.s;
+    return [
+      '<div class="actions">',
+        '<button data-action="addskill">+ Add skill</button>',
+        '<button data-action="addknowledge">+ Knowledge skill</button>',
+      '</div>',
+      knowledge.length ? '<h3>Knowledge skills</h3>' : '',
+      ...knowledge.map((name, index) => this.knowledgeRowHTML(name, index)),
+      '<div class="stack">',
+        ...skills.map((skill, index) => this.skillRowHTML(skill, index)),
+      '</div>',
+      '<p class="muted">Specializations cost 2,500¥ and grant +2 when applicable. Knowledge skills cost 2,500¥ each.</p>'
+    ].join('');
+  }
+
+  skillRowHTML(skill, index) {
+    const used = new Set(this.s.skills.filter((_, i) => i !== index).map(other => normalizeName(other.name)));
+    const options = [skill.name, ...SKILLS.map(([name]) => name).filter(name => !used.has(normalizeName(name)))]
+      .filter((name, i, names) => names.findIndex(other => normalizeName(other) === normalizeName(name)) === i)
+      .sort(alphabetical)
+      .map(name => this.skillOptionHTML(name, name === skill.name))
+      .join('');
+    const cost = priceSkill(skill.rating) + getSpecializations(skill).filter(Boolean).length * 2500;
+    const dicePool = (+skill.rating || 0) + (+this.s.attributes[skill.attribute] || 0);
+
+    return [
+      '<div class="entry skill-entry"><div class="skill-main">',
+        `<label>Skill<select data-path="skills.${index}.name">${options} </select></label > `,
+        this.field('Rating', `skills.${index}.rating`, 'number'),
+        '\n  ',
+        this.field('Linked attribute', `skills.${index}.attribute`, 'text', ATTRIBUTES),
+        '\n  ',
+        this.specializationPicker(skill, index),
+        ` <span class = "cost"> ${money(cost)} · DP ${dicePool} </span>`,
+        `<button data-remove="skills.${index}" class="small">×</button > </div>`,
+        this.specializationBadges(skill, index),
+      '</div >\n  '
+    ].join('');
+  }
+
+  skillOptionHTML(name, selected) {
+    return `<option ${selected ? 'selected' : ''}>${this.esc(name)}</option>`;
+  }
+
+  knowledgeRowHTML(name, index) {
+    return [
+      '<div class="entry">',
+        `<input data-knowledge="${index}" value="${this.esc(name)}">`,
+        '<span class="cost">2,500¥</span>',
+        `<button data-remove="knowledge.${index}" class="small">×</button>`,
+      '</div>'
+    ].join('');
+  }
+
+  ampsHTML() {
+    return [
+      '<div class="actions"><button data-action="addamp">+ Add Shadow Amp</button></div>',
+      '<p class="muted">Enter the total Amp rating yourself. Cost = rating × 5,000¥. Consult pages 58–62 for Amp component guidance.</p>',
+      '<div class="stack">',
+        ...this.s.amps.map((amp, index) => this.ampRowHTML(amp, index)),
+      '</div>'
+    ].join('');
+  }
+
+  ampRowHTML(amp, index) {
+    const path = `amps.${index}`;
+    return [
+      '<div class="entry">',
+        this.field('Amp name', `${path}.name`),
+        this.field('Rating', `${path}.rating`, 'number'),
+        this.field('Effect / components', `${path}.notes`, 'textarea'),
+        `<span class="cost">${money((+amp.rating || 0) * 5000)}</span>`,
+        `<button data-remove="${path}" class="small">×</button>`,
+      '</div>'
+    ].join('');
+  }
+
+  gearHTML() {
+    const categories = Object.keys(CATALOG).sort((a, b) => a.localeCompare(b))
+      .map(category => this.catalogCategoryHTML(category));
+
+    return [
+      '<div class="formgrid">',
+        '<label class="field"><span>Search rulebook catalog</span>',
+          `<input id="catalogSearch" placeholder="Search names or type" value="${this.esc(this.catalogSearch)}">`,
+        '</label>',
+        '<label class="field"><span>Category</span><select id="catalogType">',
+          '<option value="all">All categories</option>',
+          ...categories,
+        '</select></label>',
+      '</div>',
+      `<div class="catalog" id="catalog">${this.catalogHTML()}</div>`,
+      '<div class="actions"><button data-action="additem">+ Custom entry</button></div>',
+      '<div class="stack">',
+        ...this.s.items.map((_, index) => this.itemRowHTML(index)),
+      '</div>',
+      '<p class="muted">Standard equipment and weapons cost 2,500¥; expert weapons and spells cost 5,000¥; armor costs 2,500¥ per point.</p>'
+    ].join('');
+  }
+
+  catalogCategoryHTML(category) {
+    return `<option value="${category}" ${this.catalogType === category ? 'selected' : ''}>${category}</option>`;
+  }
+
+  itemRowHTML(index) {
+    const path = `items.${index}`;
+    return [
+      '<div class="entry">',
+        this.field('Name', `${path}.name`),
+        this.field('Type', `${path}.type`, 'text', ['weapon', 'spell', 'armor', 'equipment']),
+        this.field('Description / type', `${path}.description`),
+        this.field('Cost (¥)', `${path}.cost`, 'number'),
+        `<button data-remove="${path}" class="small">×</button>`,
+      '</div>'
+    ].join('');
+  }
+
+  personalityHTML() {
+    return [
+      '<div class="formgrid">',
+        this.field('Keywords (one per line)', 'keywordsText', 'textarea'),
+        this.field('Dispositions (one per line)', 'dispositionsText', 'textarea'),
+        this.field('Cues (one per line)', 'cuesText', 'textarea'),
+      '</div>',
+      '<div class="background-wide">',
+        this.field('Background / notes', 'notes', 'textarea'),
+      '</div>',
+      '<p class="muted">Background and notes are printed on the backside of the character sheet.</p>'
+    ].join('');
+  }
+
+  printPreviewHTML() {
+    return [
+      '<div class="actions">',
+        '<button class="primary" data-action="print">Print / Save as PDF</button>',
+        '<button data-action="json">Export JSON</button>',
+        '<button data-action="generate">Generate character</button>',
+      '</div>',
+      '<p class="muted">Instead of selecting a printer, you can use "Save to PDF" in your browser in among the printer options.</p>',
+      '<div class="preview-frame"><runner-print-sheet id="sheetMount"></runner-print-sheet></div>'
+    ].join('');
+  }
+
+  layoutHTML(names, tabs, budget, body) {
+    return [
+      '<div class="app">',
+        this.headerHTML(names),
+        '<div class="layout">',
+          this.sidebarHTML(budget),
+          '<main><nav>',
+            ...tabs.map(tab => this.tabButtonHTML(tab)),
+          '</nav>',
+            body,
+          '</main>',
+        '</div>',
+        this.notice ? this.toastHTML(this.notice) : '',
+      '</div>'
+    ].join('');
+  }
+
+  headerHTML(names) {
+    return [
+      '<header><div>',
+        '<div class="eyebrow">SHADOWRUN ANARCHY 2.0 · OFFLINE BUILDER</div>',
+        '<h1>Runner Forge</h1>',
+        '<p>Build, generate, save, and print a shadowrunner.</p>',
+      '</div><div class="topactions">',
+        '<select id="saved">',
+          '<option value="">Load saved character…</option>',
+          ...names.map(name => this.savedOptionHTML(name)),
+        '</select>',
+        '<button data-action="save">Save</button>',
+        this.loadedName ? this.deleteSavedButtonHTML(this.loadedName) : '',
+        '<label class="import">Import JSON<input type="file" id="import" accept=".json,application/json" hidden></label>',
+        '<button data-action="json">Export JSON</button>',
+        '<button data-action="pdf">Print / PDF</button>',
+      '</div></header>'
+    ].join('');
+  }
+
+  savedOptionHTML(name) {
+    return `<option>${this.esc(name)}</option>`;
+  }
+
+  deleteSavedButtonHTML(name) {
+    return `<button class="danger" data-action="delete" title="Delete ${this.esc(name)} from local storage">Delete saved</button>`;
+  }
+
+  sidebarHTML(budget) {
+    const { level, metatype } = this.s;
+    const { remaining, spent, warnings } = budget;
+    const limit = LEVELS[level].budget;
+    const percentSpent = Math.min(100, spent / limit * 100);
+    const warningItems = warnings.length
+      ? warnings.map(warning => this.warningItemHTML(warning)).join('')
+      : '<li>No budget or basic limit warnings.</li>';
+
+    return [
+      '<aside><div class="balance">',
+        `<div class="eyebrow">${this.esc(level)} · ${this.esc(metatype)}</div>`,
+        '<div class="balance-title">Nuyen remaining</div>',
+        `<div class="big ${remaining < 0 ? 'negative' : ''}">${money(remaining)}</div>`,
+        `<div class="meter"><div style="width:${percentSpent}%"></div></div>`,
+        this.budgetRowHTML('Budget', limit),
+        this.budgetRowHTML('Spent', spent),
+      '</div><div class="breakdown">',
+        this.budgetRowHTML('Attributes', budget.attr),
+        this.budgetRowHTML('Skills', budget.skills),
+        this.budgetRowHTML('Knowledge', budget.knowledge),
+        this.budgetRowHTML('Shadow Amps', budget.amps),
+        this.budgetRowHTML('Gear & spells', budget.items),
+      '</div><div class="warnings">',
+        `<h3>Rule checks · ${warnings.length}</h3><ul>${warningItems}</ul>`,
+      '</div></aside>'
+    ].join('');
+  }
+
+  budgetRowHTML(label, amount) {
+    return `<div class="rowline"><span>${label}</span><b>${money(amount)}</b></div>`;
+  }
+
+  warningItemHTML(warning) {
+    return `<li>${this.esc(warning)}</li>`;
+  }
+
+  tabButtonHTML(tab) {
+    const label = tab === 'magic' ? 'Shadow Amps' : tab === 'gear' ? 'Gear & Spells' : tab[0].toUpperCase() + tab.slice(1);
+    const active = this.tab === tab ? 'active' : '';
+    return `<button data-tab="${tab}" class="${active}">${label}</button>`;
+  }
+
+  toastHTML(notice) {
+    return `<div class="toast" role="status">${this.esc(notice)}</div>`;
+  }
+
+  catalogHTML() {
+    const q = this.catalogSearch.trim().toLocaleLowerCase();
+    const chosen = new Set(this.s.items.map(x => x.type + '|' + x.name));
+    return Object.entries(CATALOG).filter(([type]) => this.catalogType === 'all' || type === this.catalogType).flatMap((
+        [type, arr]) => arr.filter(item => !chosen.has(type + '|' + item.name) && !(type === 'equipment' &&
+        isFreeCommlink(item.name)) && (item.name + ' ' + item.group + ' ' + type).toLocaleLowerCase().includes(q))
+      .map(item => ({
+        type,
+        ...item
+      }))).sort((a, b) => a.name.localeCompare(b.name, undefined, {
+      sensitivity: 'base'
+    }) || a.type.localeCompare(b.type)).map(item => this.catalogItemHTML(item)).join('') || '<p>No available matches.</p>'
+  }
+
+  catalogItemHTML(item) {
+    const key = `${this.esc(item.type)}|${this.esc(item.name)}|${item.cost}`;
+    const label = this.esc(item.name);
+    const cost = `${money(item.cost)} · ${this.esc(item.group)}`;
+    return `<runner-catalog-item data-catalog="${key}" label="${label}" cost="${cost}"></runner-catalog-item>`;
+  }
+
+bind() {
+  this.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+    this.clearNotice();
+    this.tab = b.dataset.tab;
+    this.update()
+  });
+  this.querySelectorAll('[data-path]').forEach(e => e.onchange = () => {
+    const path = e.dataset.path;
+    const val = e.type === 'number' ? Number(e.value) : e.value;
+    if (/^skills\.\d+\.name$/.test(path) && this.s.skills.some((skill, i) => i !== Number(path.split('.')[1]) &&
+        normalizeName(skill.name) === normalizeName(val))) {
+      this.notify('Skill already selected.');
+      return
+    }
+    if (/^amps\.\d+\.name$/.test(path) && this.s.amps.some((amp, i) => i !== Number(path.split('.')[1]) &&
+        normalizeName(amp.name) === normalizeName(val))) {
+      this.notify('Shadow Amp already selected.');
+      return
+    }
+    if (/^items\.\d+\.type$/.test(path) && val === 'equipment' && this.s.items.filter(x => x.type === 'equipment')
+      .length >= 4 && this.s.items[Number(path.split('.')[1])].type !== 'equipment') {
+      this.notify('Maximum 4 equipment items.');
+      return
+    }
+
+    const parts = path.split('.');
+    const skillChange = path.match(/^skills\.\d+\.name$/);
+    if (parts.length === 1) {
+      this.s[parts[0]] = val;
+    } else if (parts.length === 2) {
+      this.s[parts[0]][parts[1]] = val;
+    } else {
+      this.s[parts[0]][+parts[1]][parts[2]] = val;
+    }
+    if (path === 'role' && this.s.concept !== 'Random' && !CONCEPTS.some(c => c[0] === this.s.concept && (val ===
+        'Any' || c[1] === val))) this.s.concept = 'Random';
+    if (skillChange) {
+      const skillIndex = parts[1];
+      this.s.skills[skillIndex].specialization = '';
+      this.s.skills[skillIndex].specializations = [];
+      const newSkill = SKILLS.find(([name]) => name === val);
+      this.s.skills[skillIndex].attribute = newSkill[1];
+    }
+    this.update()
+  });
+  this.querySelectorAll('[data-add-specialization]').forEach(el => el.onchange = () => {
+    const i = +el.dataset.addSpecialization;
+    if (el.value === '__custom__') {
+      const area = el.closest('.skill-entry');
+      const input = area.querySelector('[data-custom-for]');
+      const button = area.querySelector('[data-confirm-custom]');
+      input.hidden = false;
+      button.hidden = false;
+      input.focus();
+    } else if (el.value) this.addSpecialization(i, el.value);
+  });
+  this.querySelectorAll('[data-confirm-custom]').forEach(el => el.onclick = () => this.addSpecialization(+el.dataset
+    .confirmCustom, this.querySelector(`[data-custom-for="${el.dataset.confirmCustom}"]`).value));
+  this.querySelectorAll('[data-custom-for]').forEach(el => el.onkeydown = e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.addSpecialization(+el.dataset.customFor, el.value)
+    }
+  });
+  this.querySelectorAll('[data-remove-specialization]').forEach(el => el.onclick = () => {
+    const [i, j] = el.dataset.removeSpecialization.split(':').map(Number);
+    this.removeSpecialization(i, j)
+  });
+  this.querySelectorAll('[data-knowledge]').forEach(e => e.onchange = () => {
+    this.s.knowledge[+e.dataset.knowledge] = e.value;
+    this.update()
+  });
+  this.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => {
+    const [k, i] = b.dataset.remove.split('.');
+    this.remove(k, +i)
+  });
+  this.querySelectorAll('[data-action]').forEach(b => b.onclick = () => {
+    switch (b.dataset.action) {
+      case 'generate':
+        this.randomize();
+        break;
+      case 'reset':
+        if (confirm('Start a new blank character? Unsaved changes will be lost.')) {
+          this.s = blank();
+          this.loadedName = null;
+          this.update()
+        }
+        break;
+      case 'save':
+        this.save();
+        break;
+      case 'delete':
+        this.deleteLoaded();
+        break;
+      case 'json':
+        this.exportJSON();
+        break;
+      case 'pdf':
+      case 'print':
+        this.print();
+        break;
+      case 'addskill': {
+        const next = SKILLS.find(([name]) => !this.s.skills.some(skill => normalizeName(skill.name) ===
+          normalizeName(name)));
+        if (!next) {
+          this.notify('All skills are already selected.');
+          break
+        }
+        this.add('skills', {
+          name: next[0],
+          rating: 3,
+          attribute: next[1],
+          specialization: ''
+        });
+        break;
+      }
+      case 'addknowledge':
+        this.s.knowledge.push('');
+        this.update();
+        break;
+      case 'addamp': {
+        let name = 'New Amp',
+          i = 2;
+        while (this.s.amps.some(a => normalizeName(a.name) === normalizeName(name))) name = 'New Amp ' + i++;
+        this.add('amps', {
+          name,
+          rating: 1,
+          notes: ''
+        });
+        break;
+      }
+      case 'additem':
+        this.add('items', {
+          name: 'Custom item',
+          type: 'equipment',
+          cost: 2500,
+          description: ''
+        });
+        break;
+      case 'editportrait': {
+        const editor = document.createElement('runner-portrait-editor');
+        editor.addEventListener('portrait-ready', event => {
+          this.s.portrait = event.detail;
+          this.update()
+        });
+        document.body.append(editor);
+        editor.open(this.s.portrait);
+        break
+      }
+      case 'clearportrait':
+        this.s.portrait = '';
+        this.update()
+    }
+  });
+  this.querySelector('#saved').onchange = e => this.load(e.target.value);
+  const imp = this.querySelector('#import');
+  imp.onchange = e => this.importJSON(e.target.files[0]);
+  const port = this.querySelector('#portrait');
+  if (port) port.onchange = e => this.portrait(e.target.files[0]);
+  const check = this.querySelector('[data-check]');
+  if (check) check.onchange = e => {
+    this.s.personality = e.target.checked
+  };
+  const search = this.querySelector('#catalogSearch');
+  if (search) search.oninput = e => {
+    this.catalogSearch = e.target.value;
+    this.querySelector('#catalog').innerHTML = this.catalogHTML();
+    this.bindCatalog()
+  };
+  const category = this.querySelector('#catalogType');
+  if (category) category.onchange = e => {
+    this.catalogType = e.target.value;
+    this.querySelector('#catalog').innerHTML = this.catalogHTML();
+    this.bindCatalog()
+  };
+  this.bindCatalog();
+  for (const [field, key] of [
+      ['keywordsText', 'keywords'],
+      ['dispositionsText', 'dispositions'],
+      ['cuesText', 'cues']
+    ]) {
+    const el = this.querySelector(`[data-path="${field}"]`);
+    if (el) {
+      el.value = this.s[key].join('\n');
+      el.onchange = () => {
+        this.s[key] = el.value.split('\n').map(x => x.trim()).filter(Boolean);
+        this.update()
+      }
+    }
+  }
+}
+bindCatalog() {
+  this.querySelectorAll('[data-catalog]').forEach(b => b.onclick = () => {
+    const [type, name, cost] = b.dataset.catalog.split('|');
+    if (this.s.items.some(item => item.type === type && item.name === name)) return;
+    this.add('items', {
+      type,
+      name,
+      cost: +cost,
+      description: CATALOG[type]?.find(x => x.name === name)?.group || ''
+    })
+  })
+}
+print() {
+  const w = window.open('', '_blank');
+  if (!w) {
+    this.notify('Allow popups to print or save PDF.');
+    return
+  }
+  w.document.write('<!doctype html><html><head><title>' + this.esc(this.s.name || 'Runner') +
+    '</title><style>body{margin:0} .sheet{width:210mm;height:273.5mm;position:relative;background-image:url("' +
+    new URL('../images/clean-template.png', import.meta.url).href +
+    '");background-size:100% 100%;container-type:inline-size} .overlay{position:absolute;font-family:Arial,sans-serif;font-size:9px;color:#29140d;white-space:nowrap;overflow:hidden} .wound{position:absolute;border-radius:50%;background:#5d2e20} .portrait{position:absolute;left:67.6%;top:12.1%;width:27.2%;height:21.0%;object-fit:cover;clip-path:ellipse(49% 49% at 50% 50%)}' +
+    '.sheet-notes{box-sizing:border-box;height:273.5mm;padding:14mm;overflow:hidden;font:11pt/1.5 Arial,sans-serif}' +
+    '.sheet-notes h2{margin:0 0 .5em} .sheet-notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}' +
+    '@page{size:210mm 273.85mm;margin:0}' +
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact} .sheet-notes{break-before:page}}</style></head><body>' +
+    this.printContentHTML() + '</body></html>');
+  w.onbeforeprint = () => this.fitPrintedNotes(w.document);
+  w.onload = () => setTimeout(() => w.print(), 350);
+  w.document.close();
+}
+fitPrintedNotes(doc) {
+  const page = doc.querySelector('.sheet-notes');
+  if (!page) return;
+  const content = page.firstElementChild;
+  content.style.zoom = '';
+  const style = doc.defaultView.getComputedStyle(page);
+  const availableHeight = page.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  const contentHeight = content.getBoundingClientRect().height;
+  if (contentHeight > availableHeight) {
+    content.style.zoom = (availableHeight - 1) / contentHeight;
+  }
+}
+drawSheet() {
+  this.querySelector('#sheetMount').markup = this.printContentHTML()
+}
+printContentHTML() {
+  return this.sheetHTML() + this.sheetNotesHTML(this.s.notes);
+}
+sheetNotesHTML(notes) {
+  const text = String(notes || '');
+  if (!text.trim()) return '';
+  return `<section class="sheet-notes"><div><h2>Background / notes</h2><p>${this.esc(text)}</p></div></section>`;
+}
+sheetHTML() {
+  const s = this.s;
+  const lines = (values, x, y, step, w, max, size = 1.04, transform) => values.slice(0, max)
+    .map((v, i) => this.sheetOverlayHTML(v, x, y + i * step, w, 1.7, size, undefined, transform)).join('');
+  let h = '<div class="sheet">';
+  // Coordinates measured against correctedAlignment.webp (1571 × 2048), scaled as percentages.
+  h += this.sheetOverlayHTML(s.name, 21, 4.0, 35, 3, 2.5, 'center');
+  const attrX = [6.1, 15.3, 24.3, 33.1, 42.5, 51.4];
+  [...ATTRIBUTES.map(a => s.attributes[a]), s.edge].forEach((value, i) => h += this.sheetOverlayHTML(value, attrX[i], 12.0, 6.1, 3.1, 2.0,
+    'center'));
+  s.skills.slice(0, 11).forEach((v, i) => {
+    const y = 19.15 + i * 2.16;
+    const hasSpecialization = !!specializationLabel(v);
+    const att = +s.attributes[v.attribute] || 0;
+    h += this.sheetOverlayHTML(v.name + (hasSpecialization ? ' (+' + specializationLabel(v) + ')' : ''), 5.3, y, 24.8, 1.7, 1.2);
+    h += this.sheetOverlayHTML(v.rating, 31.3, y, 5, 1.7, 1.2, 'center');
+    h += this.sheetOverlayHTML(att, 38.6, y, 5, 1.7, 1.2, 'center');
+    h += this.sheetOverlayHTML((+v.rating || 0) + att + (hasSpecialization ? (' (+2)') : ''), 46, y, 5, 1.7, 1.2, 'center')
+  });
+  h += lines(s.amps.map(v => v.name + ' (' + v.rating + ')' + (v.notes ? ' ' + v.notes : '')), 5.3, 46, 2.16, 53, 11,
+    1.2);
+  h += this.sheetOverlayHTML(s.knowledge.join(', '), 5.3, 72.6, 44, 1, 1.2);
+  h += this.sheetOverlayHTML(s.essence, 51.6, 72.6, 7, 1, 1.2, 'center');
+  const arms = s.items.filter(v => v.type === 'weapon' || v.type === 'spell');
+  arms.slice(0, 4).forEach((v, i) => {
+    const catalogType = CATALOG[v.type]?.find(x => normalizeName(x.name) === normalizeName(v.name))?.group;
+    const description = catalogType || v.description;
+    h += this.sheetOverlayHTML(v.name + ', ' + description, 5.3, 78 + i * 2.16, 43, 1.7, 1.2);
+    h += this.sheetOverlayHTML((v.type === 'spell' ? 'Spell' : 'Weapon'), 49.7, 78.2 + i * 2.16, 9, 1.7, 1, 'center')
+  });
+  const gear = s.items.filter(v => v.type === 'armor' || (v.type === 'equipment' && !isFreeCommlink(v.name)));
+  h += lines(gear.map(v => v.name + ' ' + money(v.cost)), 5.3, 89.3, 1.76, 20, 4, 1);
+  h += this.sheetOverlayHTML('Remaining: ' + money(calc(s).remaining), 7, 96.45, 22, 1.3, 1);
+  const armorItem = s.items.find(v => v.type === 'armor');
+  const armor = armorItem ? Number((armorItem.name.match(/\((\d+)\)/) || [])[1] || 0) : 0;
+  const strength = +s.attributes.Strength || 0,
+    willpower = +s.attributes.Willpower || 0;
+  const woundRows = [{
+    y: 91,
+    base: strength
+  }, {
+    y: 92.7,
+    base: strength + armor
+  }, {
+    y: 94.5,
+    base: strength
+  }, {
+    y: 96.3,
+    base: willpower
+  }];
+  woundRows.forEach(row => [row.base, row.base + 3, row.base + 6].forEach((n, i) => h += this.sheetOverlayHTML(n, 44.6 + i * 5.5 + (i ==
+    2 ? -1 : 0), row.y, 4.4, 1.4, 1, 'center')));
+  h += this.sheetOverlayHTML(armorItem ? armorItem.name : 'No armor', 32.3, 92.8, 11, 1.5, 1);
+  h += lines(s.keywords, 68.4, 38, 2.16, 26, 5, 1.2, 'rotateZ(-2deg)');
+  h += lines(s.dispositions, 68.4, 54.6, 2.18, 27, 4, 1.02, 'rotateZ(2deg)');
+  h += lines(s.cues, 68.4, 69.2, 2.9, 27, 5, 1.02, 'rotateZ(-1deg)');
+  // Wounds are printed as filled condition markers; thresholds above are always present.
+  const woundValues = [s.wounds || {}, s.mentalWounds || {}];
+  woundValues.forEach((values, row) => {
+    let index = 0;
+    for (const key of ['light', 'serious', 'incapacitated']) {
+      const count = Math.max(0, Math.min(5, +values[key] || 0));
+      for (let i = 0; i < count; i++) {
+        const x = 44.3 + index * 2.08;
+        h += this.sheetWoundHTML(x, 89.88 + row * 1.2);
+        index++
+      }
+    }
+  });
+  if (s.portrait) h += this.sheetPortraitHTML(s.portrait);  
+  return h + '</div>';
+}
+
+sheetOverlayHTML(value, x, y, w, h = 1.65, size = 1.04, align = 'left', transform) {
+  const transformStyle = transform ? 'transform: ' + transform : '';
+  return `<div class="overlay" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;font-size:${size}cqw;text-align:${align};${transformStyle}">${this.esc(value)}</div>`;
+}
+
+sheetWoundHTML(x, y) {
+  return `<span class="wound" style="left:${x}%;top:${y}%;width:1.28%;height:.97%"></span>`;
+}
+
+sheetPortraitHTML(portrait) {
+  return `<img class="portrait" src="${portrait}" alt="Character portrait">`;
+}
+}
+customElements.define('anarchy-builder', AnarchyBuilder);
