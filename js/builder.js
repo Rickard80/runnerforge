@@ -3,7 +3,10 @@ import {
   LIMITS,
   LEVELS,
   SKILLS,
-  CONCEPTS
+  CONCEPTS,
+  DEFAULT_AMPS,
+  AMP_SOURCES,
+  SHADOW_AMP_RULES_SOURCE
 } from './data.js';
 import {
   CATALOG
@@ -31,6 +34,9 @@ import './components/print-sheet.js';
 import './components/budget.js';
 import './components/portrait-editor.js';
 const STORE = 'anarchy2.characters.v1';
+const ampReviewNote = source => source
+  ? `Review Amp components and rating in Anarchy 2.0, ${source}.`
+  : `Review the general Shadow Amp rules in Anarchy 2.0, ${SHADOW_AMP_RULES_SOURCE}.`;
 const normalizeName = value => String(value ?? '').trim().toLocaleLowerCase();
 const alphabetical = (a, b) => String(a.name ?? a).localeCompare(String(b.name ?? b), undefined, {
   sensitivity: 'base'
@@ -257,10 +263,10 @@ export class AnarchyBuilder extends HTMLElement {
   randomize() {
     this.loadedName = null;
     const s = blank();
-    const options = CONCEPTS.filter(c => (this.s.role === 'Any' || c[1] === this.s.role) && (this.s.concept ===
-      'Random' || c[0] === this.s.concept));
+    const options = CONCEPTS.filter(({ name, role }) => (this.s.role === 'Any' || role === this.s.role) &&
+      (this.s.concept === 'Random' || name === this.s.concept));
     if (!options.length) return this.notify('No concept matches that role family.');
-    const bag = options.flatMap(c => Array(c[5]).fill(c));
+    const bag = options.flatMap(c => Array(c.weight).fill(c));
     const c = pick(bag);
     s.level = this.s.level;
     s.role = this.s.role;
@@ -268,9 +274,9 @@ export class AnarchyBuilder extends HTMLElement {
     s.personality = this.s.personality;
     s.metatype = pick(['Human', 'Human', 'Elf', 'Dwarf', 'Ork', 'Troll']);
     s.edge = LIMITS[s.metatype][5];
-    s.name = c[0] + ' ' + Math.floor(Math.random() * 90 + 10);
+    s.name = c.name + ' ' + Math.floor(Math.random() * 90 + 10);
     const target = LEVELS[s.level];
-    const pri = c[2],
+    const pri = c.attribute,
       limit = LIMITS[s.metatype];
     const attPoints = s.level === 'Ganger' ? 12 : s.level === 'Runner' ? 14 : 16;
     let attempts = 0;
@@ -284,7 +290,7 @@ export class AnarchyBuilder extends HTMLElement {
     }
     const count = s.level === 'Ganger' ? 24 : s.level === 'Runner' ? 30 : 36;
     let pool = 0;
-    const focus = c[3],
+    const focus = c.skills,
       extras = SKILLS.map(x => x[0]);
     let skillAttempts = 0;
     while (pool < count && skillAttempts++ < 2000) {
@@ -307,23 +313,24 @@ export class AnarchyBuilder extends HTMLElement {
       pool++
     }
     if (s.personality) {
-      s.keywords = [s.metatype, c[0], pick(KEYWORDS), pick(
+      s.keywords = [s.metatype, c.name, pick(KEYWORDS), pick(
         ['Smog-choked Aubur', 'Gilded Bellevue', 'Neon Downtown', 'Salt-crusted Everett', 'Scorched Barrens', 'Lawless Redmond', 'Striving Renton', 'Agri-corp Snohomish', 'Rain-slicked Tacoma'])];
       s.dispositions = pickDistinctPersonality(DISPOSITIONS, 2);
       s.cues = pickDistinctPersonality(STREETWISE_CUES, 2)
     }
-    const magic = c[1] === 'Magician';
+    const magic = c.role === 'Magician';
     const ampCount = magic ? 3 : 4;
-    const ampChoices = [...new Set([...(c[4] || []), 'Enhanced Senses', 'Contacts', 'Protective Focus', 'Smartlink',
-      'Reaction Booster'
-    ])];
+    const fallbackAmps = DEFAULT_AMPS.filter(name => magic || name !== 'Counterspelling Focus');
+    const ampChoices = [...new Set([...c.amps, ...fallbackAmps])];
     for (let i = 0; i < ampCount && ampChoices.length; i++) {
       const index = i === 0 ? 0 : Math.floor(Math.random() * ampChoices.length);
       const name = ampChoices.splice(index, 1)[0];
+      const source = AMP_SOURCES[name] ?? null;
       s.amps.push({
         name,
         rating: i === 0 ? 4 : 2,
-        notes: 'Review Amp components and rating on pp. 58–62.'
+        source,
+        notes: ampReviewNote(source)
       })
     } // Equipment, armor, weapons and spells are separate categories and limits.
     const used = new Set();
@@ -348,7 +355,7 @@ export class AnarchyBuilder extends HTMLElement {
       name: v.name
     }));
     // Prefer concept-relevant weapons but never force Heavy pistol.
-    const firearmFocus = c[3].includes('Firearms') || c[3].includes('Heavy Weapons');
+    const firearmFocus = c.skills.includes('Firearms') || c.skills.includes('Heavy Weapons');
     const weaponCount = magic ? 1 : (firearmFocus ? 2 : 1);
     const chosenWeapons = pickUnique(firearmFocus ? ranged : melee, weaponCount);
     if (!chosenWeapons.length) chosenWeapons.push(...pickUnique(gearPool('weapon', used), 1));
@@ -382,7 +389,7 @@ export class AnarchyBuilder extends HTMLElement {
     s.amps = sortedAmps(s.amps);
     s.items = sortedItems(s.items);
     this.s = s;
-    this.notify('Generated ' + c[0] + ' · ' + s.metatype + ' · ' + s.level +
+    this.notify('Generated ' + c.name + ' · ' + s.metatype + ' · ' + s.level +
       '; review rule warnings and Amp effects.');
   }
 
@@ -502,9 +509,11 @@ export class AnarchyBuilder extends HTMLElement {
   }
 
   identityHTML() {
-    const { role, personality } = this.s;
+    const { role, concept, personality } = this.s;
     const roles = ['Any', 'Fighter', 'Magician', 'Technologist', 'Specialist', 'Social'];
-    const concepts = ['Random', ...CONCEPTS.filter(([, family]) => role === 'Any' || family === role).map(([name]) => name)];
+    const availableConcepts = CONCEPTS.filter(c => role === 'Any' || c.role === role);
+    const concepts = ['Random', ...availableConcepts.map(c => c.name)];
+    const source = availableConcepts.find(c => c.name === concept)?.source;
 
     return [
       '<div class="formgrid">',
@@ -514,6 +523,7 @@ export class AnarchyBuilder extends HTMLElement {
         this.field('Role family', 'role', 'text', roles),
         this.field('Concept', 'concept', 'text', concepts),
       '</div>',
+      source ? `<p class="muted">Anarchy 2.0 concept reference · ${this.esc(source)}</p>` : '',
       `<label class="check"><input type="checkbox" data-check="personality" ${personality ? 'checked' : ''}> Generate personality</label>`,
       '<div class="actions">',
         '<button data-action="generate" class="primary">Generate character</button>',
@@ -613,7 +623,7 @@ export class AnarchyBuilder extends HTMLElement {
   ampsHTML() {
     return [
       '<div class="actions"><button data-action="addamp">+ Add Shadow Amp</button></div>',
-      '<p class="muted">Enter the total Amp rating yourself. Cost = rating × 5,000¥. Consult pages 58–62 for Amp component guidance.</p>',
+      `<p class="muted">Enter the total Amp rating yourself. Cost = rating × 5,000¥. See Anarchy 2.0, ${SHADOW_AMP_RULES_SOURCE}, for general Amp rules.</p>`,
       '<div class="stack">',
         ...this.s.amps.map((amp, index) => this.ampRowHTML(amp, index)),
       '</div>'
@@ -839,6 +849,15 @@ bind() {
 
     const parts = path.split('.');
     const skillChange = path.match(/^skills\.\d+\.name$/);
+    if (/^amps\.\d+\.name$/.test(path)) {
+      const amp = this.s.amps[+parts[1]];
+      if (Object.hasOwn(amp, 'source') && normalizeName(amp.name) !== normalizeName(val)) {
+        const ampName = Object.keys(AMP_SOURCES).find(name => normalizeName(name) === normalizeName(val));
+        const source = AMP_SOURCES[ampName] ?? null;
+        if (amp.notes === ampReviewNote(amp.source)) amp.notes = ampReviewNote(source);
+        amp.source = source;
+      }
+    }
     if (parts.length === 1) {
       this.s[parts[0]] = val;
     } else if (parts.length === 2) {
@@ -846,8 +865,8 @@ bind() {
     } else {
       this.s[parts[0]][+parts[1]][parts[2]] = val;
     }
-    if (path === 'role' && this.s.concept !== 'Random' && !CONCEPTS.some(c => c[0] === this.s.concept && (val ===
-        'Any' || c[1] === val))) this.s.concept = 'Random';
+    if (path === 'role' && this.s.concept !== 'Random' && !CONCEPTS.some(c => c.name === this.s.concept && (val ===
+        'Any' || c.role === val))) this.s.concept = 'Random';
     if (skillChange) {
       const skillIndex = parts[1];
       this.s.skills[skillIndex].specialization = '';

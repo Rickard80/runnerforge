@@ -46,102 +46,106 @@ const SKILLS = [
   ['Network', 'Charisma'],
   ['Intimidation', 'Charisma']
 ];
+const SHADOW_AMP_RULES_SOURCE = 'pp. 58–62';
+
+const DEFAULT_AMPS = ['Enhanced Senses', 'Contacts', 'Counterspelling Focus', 'Smartlink', 'Reaction Enhancer'];
+
+const AMP_SOURCES = {
+  'Enhanced Senses': 'p. 257',
+  Contacts: 'pp. 60, 164',
+  'Counterspelling Focus': 'p. 189',
+  Smartlink: 'pp. 83, 157',
+  'Reaction Enhancer': 'p. 158',
+  Cyberware: 'pp. 153–158',
+  'Wired Reflexes': 'p. 158',
+  'Critical Strike': 'p. 191',
+  'Dermal Plating': 'p. 158',
+  'Enhanced Reflexes': 'p. 191',
+  'Tool Kit': 'p. 136',
+  Cyberdeck: 'pp. 209–210',
+  'Control Rig': 'p. 155',
+  'Drone Control': 'p. 232',
+  'Spirit Affinity': 'p. 185',
+  'Spell Focus': 'p. 189',
+  'Illusion Focus': 'p. 189',
+  'Mentor Spirit': 'pp. 174–175',
+  'Healing Focus': 'pp. 184, 189',
+  'Tailored Pheromones': 'p. 159',
+  Disguise: 'p. 139',
+  'Cerebral Booster': 'p. 159',
+  'Black Market Contacts': 'p. 164',
+  'Street Contacts': 'pp. 85, 164'
+};
+
 const CONCEPTS = [
-  ['Street Samurai', 'Fighter', 'Agility', ['Close Combat', 'Firearms', 'Athletics'],
-    ['Cyberware', 'Smartlink'], 3
-  ],
-  ['Razorgirl', 'Fighter', 'Agility', ['Close Combat', 'Stealth', 'Athletics'],
-    ['Wired Reflexes'], 3
-  ],
-  ['Combat Adept', 'Fighter', 'Agility', ['Close Combat', 'Athletics', 'Perception'],
-    ['Critical Strike'], 2
-  ],
-  ['Mercenary', 'Fighter', 'Agility', ['Firearms', 'Heavy Weapons', 'Survival'],
-    ['Smartlink'], 2
-  ],
-  ['Bodyguard', 'Fighter', 'Strength', ['Close Combat', 'Firearms', 'Perception'],
-    ['Dermal Plating'], 2
-  ],
-  ['Infiltrator', 'Specialist', 'Agility', ['Stealth', 'Athletics', 'Electronics'],
-    ['Enhanced Reflexes'], 3
-  ],
-  ['Burglar', 'Specialist', 'Agility', ['Stealth', 'Electronics', 'Athletics'],
-    ['Tool Kit'], 2
-  ],
-  ['Decker', 'Technologist', 'Logic', ['Hacking', 'Electronics', 'Perception'],
-    ['Cyberdeck'], 4
-  ],
-  ['Combat Decker', 'Technologist', 'Logic', ['Hacking', 'Firearms', 'Athletics'],
-    ['Cyberdeck'], 2
-  ],
-  ['Rigger', 'Technologist', 'Logic', ['Engineering', 'Piloting', 'Electronics'],
-    ['Control Rig'], 4
-  ],
-  ['Drone Specialist', 'Technologist', 'Logic', ['Piloting', 'Engineering', 'Perception'],
-    ['Drone Control'], 2
-  ],
-  ['Technomancer', 'Technologist', 'Logic', ['Hacking', 'Electronics', 'Influence'],
-    ['Resonance'], 1
-  ],
-  ['Street Shaman', 'Magician', 'Willpower', ['Conjuring', 'Sorcery', 'Influence'],
-    ['Spirit Affinity'], 4
-  ],
-  ['Combat Mage', 'Magician', 'Willpower', ['Sorcery', 'Perception', 'Athletics'],
-    ['Spell Focus'], 3
-  ],
-  ['Illusionist', 'Magician', 'Willpower', ['Sorcery', 'Stealth', 'Influence'],
-    ['Illusion Focus'], 3
-  ],
-  ['Spirit Whisperer', 'Magician', 'Willpower', ['Conjuring', 'Perception', 'Influence'],
-    ['Mentor Spirit'], 2
-  ],
-  ['Street Doc', 'Specialist', 'Logic', ['Biotech', 'Influence', 'Perception'],
-    ['Healing Focus'], 3
-  ],
-  ['Face', 'Social', 'Charisma', ['Influence', 'Network', 'Perception'],
-    ['Tailored Pheromones'], 4
-  ],
-  ['Fixer', 'Social', 'Charisma', ['Network', 'Influence', 'Intimidation'],
-    ['Contacts'], 2
-  ],
-  ['Con Artist', 'Social', 'Charisma', ['Influence', 'Stealth', 'Network'],
-    ['Disguise'], 2
-  ],
-  ['Investigator', 'Specialist', 'Logic', ['Perception', 'Tracking', 'Influence'],
-    ['Enhanced Senses'], 2
-  ],
-  ['Journalist', 'Social', 'Charisma', ['Influence', 'Perception', 'Stealth'],
-    ['Contacts'], 2
-  ],
-  ['Archaeologist', 'Specialist', 'Logic', ['Survival', 'Tracking', 'Perception'],
-    ['Cerebral Booster'], 1
-  ],
-  ['Arms Dealer', 'Social', 'Charisma', ['Influence', 'Firearms', 'Network'],
-    ['Black Market Contacts'], 2
-  ],
-  ['Gang Leader', 'Social', 'Charisma', ['Intimidation', 'Network', 'Firearms'],
-    ['Street Contacts'], 2
-  ],
-  ['Courier', 'Specialist', 'Agility', ['Athletics', 'Piloting', 'Stealth'],
-    ['SynthaCardium'], 2
-  ],
-  ['Security Expert', 'Technologist', 'Logic', ['Electronics', 'Engineering', 'Firearms'],
-    ['Security Rig'], 2
-  ],
-  ['Smuggler', 'Specialist', 'Agility', ['Piloting', 'Stealth', 'Network'],
-    ['Hidden Compartments'], 2
-  ],
-  ['Tank', 'Fighter', 'Strength', ['Close Combat', 'Firearms', 'Survival'],
-    ['Dermal Plating'], 2
-  ],
-  ['Scout', 'Specialist', 'Agility', ['Tracking', 'Survival', 'Perception'],
-    ['Enhanced Senses'], 2
-  ]
+  { name: 'Street Samurai', role: 'Fighter', attribute: 'Agility', skills: ['Close Combat', 'Firearms', 'Athletics'],
+    amps: ['Cyberware', 'Smartlink'], weight: 3, source: 'pp. 90–91 (Wild Jane)' },
+  { name: 'Razorgirl', role: 'Fighter', attribute: 'Agility', skills: ['Close Combat', 'Stealth', 'Athletics'],
+    amps: ['Wired Reflexes'], weight: 3, source: 'pp. 90–91 (Wild Jane)' },
+  { name: 'Combat Adept', role: 'Fighter', attribute: 'Agility', skills: ['Close Combat', 'Athletics', 'Perception'],
+    amps: ['Critical Strike'], weight: 2, source: 'pp. 108–109 (Mictlan)' },
+  { name: 'Mercenary', role: 'Fighter', attribute: 'Agility', skills: ['Firearms', 'Heavy Weapons', 'Survival'],
+    amps: ['Smartlink'], weight: 2, source: 'p. 252 (Soldier profile)' },
+  { name: 'Bodyguard', role: 'Fighter', attribute: 'Strength', skills: ['Close Combat', 'Firearms', 'Perception'],
+    amps: ['Dermal Plating'], weight: 2, source: 'p. 250 (Elite Security profile)' },
+  { name: 'Infiltrator', role: 'Specialist', attribute: 'Agility', skills: ['Stealth', 'Athletics', 'Electronics'],
+    amps: ['Enhanced Reflexes'], weight: 3, source: 'pp. 102–103 (Echo)' },
+  { name: 'Burglar', role: 'Specialist', attribute: 'Agility', skills: ['Stealth', 'Electronics', 'Athletics'],
+    amps: ['Tool Kit'], weight: 2, source: 'p. 136 (Infiltration Gear Selection)' },
+  { name: 'Decker', role: 'Technologist', attribute: 'Logic', skills: ['Hacking', 'Electronics', 'Perception'],
+    amps: ['Cyberdeck'], weight: 4, source: 'pp. 94–95 (Gambit)' },
+  { name: 'Combat Decker', role: 'Technologist', attribute: 'Logic', skills: ['Hacking', 'Firearms', 'Athletics'],
+    amps: ['Cyberdeck'], weight: 2, source: 'pp. 106–107 (White_Rabbit)' },
+  { name: 'Rigger', role: 'Technologist', attribute: 'Logic', skills: ['Engineering', 'Piloting', 'Electronics'],
+    amps: ['Control Rig'], weight: 4, source: 'pp. 96–97 (Charon)' },
+  { name: 'Drone Specialist', role: 'Technologist', attribute: 'Logic', skills: ['Piloting', 'Engineering', 'Perception'],
+    amps: ['Drone Control'], weight: 2, source: 'pp. 100–101 (Casper)' },
+  { name: 'Technomancer', role: 'Technologist', attribute: 'Logic', skills: ['Hacking', 'Electronics', 'Influence'],
+    amps: ['Resonance'], weight: 1, source: null },
+  { name: 'Street Shaman', role: 'Magician', attribute: 'Willpower', skills: ['Conjuring', 'Sorcery', 'Influence'],
+    amps: ['Spirit Affinity'], weight: 4, source: 'pp. 92–93 (Trash)' },
+  { name: 'Combat Mage', role: 'Magician', attribute: 'Willpower', skills: ['Sorcery', 'Perception', 'Athletics'],
+    amps: ['Spell Focus'], weight: 3, source: 'p. 251 (Elite Security Mage profile)' },
+  { name: 'Illusionist', role: 'Magician', attribute: 'Willpower', skills: ['Sorcery', 'Stealth', 'Influence'],
+    amps: ['Illusion Focus'], weight: 3, source: 'p. 184 (Illusion Spells)' },
+  { name: 'Spirit Whisperer', role: 'Magician', attribute: 'Willpower', skills: ['Conjuring', 'Perception', 'Influence'],
+    amps: ['Mentor Spirit'], weight: 2, source: 'p. 185 (Summoning)' },
+  { name: 'Street Doc', role: 'Specialist', attribute: 'Logic', skills: ['Biotech', 'Influence', 'Perception'],
+    amps: ['Healing Focus'], weight: 3, source: 'p. 250 (Combat Medic profile)' },
+  { name: 'Face', role: 'Social', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
+    amps: ['Tailored Pheromones'], weight: 4, source: 'pp. 88–89 (Hercules)' },
+  { name: 'Fixer', role: 'Social', attribute: 'Charisma', skills: ['Network', 'Influence', 'Intimidation'],
+    amps: ['Contacts'], weight: 2, source: 'p. 164 (Fixer contact example)' },
+  { name: 'Con Artist', role: 'Social', attribute: 'Charisma', skills: ['Influence', 'Stealth', 'Network'],
+    amps: ['Disguise'], weight: 2, source: 'p. 139 (Con Artist’s Equipment Selection)' },
+  { name: 'Investigator', role: 'Specialist', attribute: 'Logic', skills: ['Perception', 'Tracking', 'Influence'],
+    amps: ['Enhanced Senses'], weight: 2, source: 'p. 254 (Investigator profile)' },
+  { name: 'Journalist', role: 'Social', attribute: 'Charisma', skills: ['Influence', 'Perception', 'Stealth'],
+    amps: ['Contacts'], weight: 2, source: 'p. 164 (Journalist contact example)' },
+  { name: 'Archaeologist', role: 'Specialist', attribute: 'Logic', skills: ['Survival', 'Tracking', 'Perception'],
+    amps: ['Cerebral Booster'], weight: 1, source: null },
+  { name: 'Arms Dealer', role: 'Social', attribute: 'Charisma', skills: ['Influence', 'Firearms', 'Network'],
+    amps: ['Black Market Contacts'], weight: 2, source: 'p. 164 (Gunsmith and Smuggler contact examples)' },
+  { name: 'Gang Leader', role: 'Social', attribute: 'Charisma', skills: ['Intimidation', 'Network', 'Firearms'],
+    amps: ['Street Contacts'], weight: 2, source: 'p. 244 (Ganger profile)' },
+  { name: 'Courier', role: 'Specialist', attribute: 'Agility', skills: ['Athletics', 'Piloting', 'Stealth'],
+    amps: ['SynthaCardium'], weight: 2, source: null },
+  { name: 'Security Expert', role: 'Technologist', attribute: 'Logic', skills: ['Electronics', 'Engineering', 'Firearms'],
+    amps: ['Security Rig'], weight: 2, source: 'p. 253 (Elite Security Rigger profile)' },
+  { name: 'Smuggler', role: 'Specialist', attribute: 'Agility', skills: ['Piloting', 'Stealth', 'Network'],
+    amps: ['Hidden Compartments'], weight: 2, source: 'p. 255 (Coyote / Smuggler profile)' },
+  { name: 'Tank', role: 'Fighter', attribute: 'Strength', skills: ['Close Combat', 'Firearms', 'Survival'],
+    amps: ['Dermal Plating'], weight: 2, source: 'pp. 104–105 (Drakk)' },
+  { name: 'Scout', role: 'Specialist', attribute: 'Agility', skills: ['Tracking', 'Survival', 'Perception'],
+    amps: ['Enhanced Senses'], weight: 2, source: null }
 ];
 export {
   ATTRIBUTES,
   LIMITS,
   LEVELS,
   SKILLS,
-  CONCEPTS
+  CONCEPTS,
+  DEFAULT_AMPS,
+  AMP_SOURCES,
+  SHADOW_AMP_RULES_SOURCE
 };
