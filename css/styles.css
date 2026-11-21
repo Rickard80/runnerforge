@@ -396,7 +396,7 @@ nav {
   & .cost {
     font-size: 12px;
     color: var(--color-entry-cost);
-    min-width: 100px
+    min-width: 80px
   }
 
   & runner-field:has(textarea) {
@@ -412,8 +412,107 @@ nav {
   }
 }
 
+.entry-reorder {
+  position: relative;
+  flex: none;
+  align-self: end;
+}
+
+.reorder-handle {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 35px;
+  border: 1px solid var(--color-button-border);
+  border-radius: 8px;
+  color: var(--color-field-label);
+  cursor: grab;
+  list-style: none;
+  touch-action: none;
+  user-select: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &::before {
+    content: '';
+    width: 12px;
+    height: 18px;
+    background: radial-gradient(circle, currentColor 1.4px, transparent 1.6px) 0 0 / 6px 6px;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  @media (pointer: coarse) {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.reorder-options {
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: 0;
+  top: calc(100% + 4px);
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--color-panel-border);
+  border-radius: 8px;
+  background: var(--color-panel-background);
+  white-space: nowrap;
+
+  & button:disabled {
+    opacity: .45;
+    cursor: default;
+  }
+}
+
+.entry-reorder:not([open]) > .reorder-options {
+  display: none;
+}
+
+[data-reorder-list]:has(.entry-dragging) {
+  user-select: none;
+}
+
+.entry-dragging {
+  opacity: .45;
+}
+
+.entry[data-drop-position] {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-accent);
+    pointer-events: none;
+  }
+
+  &[data-drop-position="before"]::after {
+    top: -6px;
+  }
+
+  &[data-drop-position="after"]::after {
+    bottom: -6px;
+  }
+}
+
 .small {
-  padding: 8px 11px
+  padding: 6px 10px
 }
 
 .portrait-preview {
@@ -822,4 +921,13 @@ runner-portrait-editor {
 
 [heading="Exact-template print preview"] [data-action="generate"] {
   margin-left: auto
+}
+
+[heading="Shadow Amps"] .actions {
+  align-items: end;
+  justify-content: space-between;
+
+  & runner-field {
+    max-width: 150px;
+  }
 }

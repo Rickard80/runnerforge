@@ -35,8 +35,8 @@ import './components/budget.js';
 import './components/portrait-editor.js';
 const STORE = 'anarchy2.characters.v1';
 const ampReviewNote = source => source
-  ? `Review Amp components and rating in Anarchy 2.0, ${source}.`
-  : `Review the general Shadow Amp rules in Anarchy 2.0, ${SHADOW_AMP_RULES_SOURCE}.`;
+  ? `Review Amp components and rating, ${source}.`
+  : `Review the general Shadow Amp rules, ${SHADOW_AMP_RULES_SOURCE}.`;
 const normalizeName = value => String(value ?? '').trim().toLocaleLowerCase();
 const alphabetical = (a, b) => String(a.name ?? a).localeCompare(String(b.name ?? b), undefined, {
   sensitivity: 'base'
@@ -176,6 +176,14 @@ export class AnarchyBuilder extends HTMLElement {
   remove(key, i) {
     this.s[key].splice(i, 1);
     this.update()
+  }
+  moveEntry(key, from, to) {
+    const entries = this.s[key];
+    if (from === to || from < 0 || to < 0 || from >= entries.length || to >= entries.length) return;
+    const [entry] = entries.splice(from, 1);
+    entries.splice(to, 0, entry);
+    this.update();
+    this.querySelector(`[data-reorder-list="${key}"] [data-entry-index="${to}"] .reorder-handle`)?.focus();
   }
   notify(msg) {
     this.notice = msg;
@@ -573,8 +581,9 @@ export class AnarchyBuilder extends HTMLElement {
         '<button data-action="addknowledge">+ Knowledge skill</button>',
       '</div>',
       knowledge.length ? '<h3>Knowledge skills</h3>' : '',
-      ...knowledge.map((name, index) => this.knowledgeRowHTML(name, index)),
-      '<div class="stack">',
+      knowledge.length ? `<div class="stack" data-reorder-list="knowledge">${knowledge.map((name, index) =>
+        this.knowledgeRowHTML(name, index)).join('')}</div>` : '',
+      '<div class="stack" data-reorder-list="skills">',
         ...skills.map((skill, index) => this.skillRowHTML(skill, index)),
       '</div>',
       '<p class="muted">Specializations cost 2,500¥ and grant +2 when applicable. Knowledge skills cost 2,500¥ each.</p>'
@@ -592,7 +601,8 @@ export class AnarchyBuilder extends HTMLElement {
     const dicePool = (+skill.rating || 0) + (+this.s.attributes[skill.attribute] || 0);
 
     return [
-      '<div class="entry skill-entry"><div class="skill-main">',
+      `<div class="entry skill-entry" data-entry-index="${index}"><div class="skill-main">`,
+        this.reorderHandleHTML('skills', index, skill.name || 'skill'),
         `<label>Skill<select data-path="skills.${index}.name">${options} </select></label > `,
         this.field('Rating', `skills.${index}.rating`, 'number'),
         '\n  ',
@@ -612,7 +622,8 @@ export class AnarchyBuilder extends HTMLElement {
 
   knowledgeRowHTML(name, index) {
     return [
-      '<div class="entry">',
+      `<div class="entry" data-entry-index="${index}">`,
+        this.reorderHandleHTML('knowledge', index, name || 'knowledge skill'),
         `<input data-knowledge="${index}" value="${this.esc(name)}">`,
         '<span class="cost">2,500¥</span>',
         `<button data-remove="knowledge.${index}" class="small">×</button>`,
@@ -622,9 +633,9 @@ export class AnarchyBuilder extends HTMLElement {
 
   ampsHTML() {
     return [
-      '<div class="actions"><button data-action="addamp">+ Add Shadow Amp</button></div>',
-      `<p class="muted">Enter the total Amp rating yourself. Cost = rating × 5,000¥. See Anarchy 2.0, ${SHADOW_AMP_RULES_SOURCE}, for general Amp rules.</p>`,
-      '<div class="stack">',
+      `<div class="actions"><button data-action="addamp">+ Add Shadow Amp</button>${this.field('Essence', 'essence')}</div>`,
+      `<p class="muted">Enter the total Amp rating yourself. Cost = rating × 5,000¥. See ${SHADOW_AMP_RULES_SOURCE} for general Amp rules.</p>`,
+      '<div class="stack" data-reorder-list="amps">',
         ...this.s.amps.map((amp, index) => this.ampRowHTML(amp, index)),
       '</div>'
     ].join('');
@@ -633,7 +644,8 @@ export class AnarchyBuilder extends HTMLElement {
   ampRowHTML(amp, index) {
     const path = `amps.${index}`;
     return [
-      '<div class="entry">',
+      `<div class="entry" data-entry-index="${index}">`,
+        this.reorderHandleHTML('amps', index, amp.name || 'Shadow Amp'),
         this.field('Amp name', `${path}.name`),
         this.field('Rating', `${path}.rating`, 'number'),
         this.field('Effect / components', `${path}.notes`, 'textarea'),
@@ -659,7 +671,7 @@ export class AnarchyBuilder extends HTMLElement {
       '</div>',
       `<div class="catalog" id="catalog">${this.catalogHTML()}</div>`,
       '<div class="actions"><button data-action="additem">+ Custom entry</button></div>',
-      '<div class="stack">',
+      '<div class="stack" data-reorder-list="items">',
         ...this.s.items.map((_, index) => this.itemRowHTML(index)),
       '</div>',
       '<p class="muted">Standard equipment and weapons cost 2,500¥; expert weapons and spells cost 5,000¥; armor costs 2,500¥ per point.</p>'
@@ -673,13 +685,28 @@ export class AnarchyBuilder extends HTMLElement {
   itemRowHTML(index) {
     const path = `items.${index}`;
     return [
-      '<div class="entry">',
+      `<div class="entry" data-entry-index="${index}">`,
+        this.reorderHandleHTML('items', index, this.s.items[index].name || 'item'),
         this.field('Name', `${path}.name`),
         this.field('Type', `${path}.type`, 'text', ['weapon', 'spell', 'armor', 'equipment']),
         this.field('Description / type', `${path}.description`),
         this.field('Cost (¥)', `${path}.cost`, 'number'),
         `<button data-remove="${path}" class="small">×</button>`,
       '</div>'
+    ].join('');
+  }
+
+  reorderHandleHTML(key, index, name) {
+    const count = this.s[key].length;
+    if (count < 2) return '';
+    return [
+      '<details class="entry-reorder">',
+        `<summary class="reorder-handle" aria-label="Reorder ${this.esc(name)}, row ${index + 1} of ${count}" title="Drag to reorder or open move options"></summary>`,
+        '<div class="reorder-options">',
+          `<button type="button" data-move="-1" ${index === 0 ? 'disabled' : ''}>Move up</button>`,
+          `<button type="button" data-move="1" ${index === count - 1 ? 'disabled' : ''}>Move down</button>`,
+        '</div>',
+      '</details>'
     ].join('');
   }
 
@@ -704,7 +731,7 @@ export class AnarchyBuilder extends HTMLElement {
         '<button data-action="json">Export JSON</button>',
         '<button data-action="generate">Generate character</button>',
       '</div>',
-      '<p class="muted">Instead of selecting a printer, you can use "Save to PDF" in your browser in among the printer options.</p>',
+      '<p class="muted">To save a PDF, choose “Save to PDF” in your browser’s print dialog.</p>',
       '<div class="preview-frame"><runner-print-sheet id="sheetMount"></runner-print-sheet></div>'
     ].join('');
   }
@@ -729,7 +756,7 @@ export class AnarchyBuilder extends HTMLElement {
   headerHTML(names) {
     return [
       '<header><div>',
-        '<div class="eyebrow">SHADOWRUN ANARCHY 2.0 · OFFLINE BUILDER</div>',
+        '<div class="eyebrow">SHADOWRUN ANARCHY 2.0 · GENERATOR</div>',
         '<h1>Runner Forge</h1>',
         '<p>Build, generate, save, and print a shadowrunner.</p>',
       '</div><div class="topactions">',
@@ -823,6 +850,7 @@ export class AnarchyBuilder extends HTMLElement {
   }
 
 bind() {
+  this.querySelectorAll('[data-reorder-list]').forEach(list => this.bindEntryReordering(list));
   this.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     this.clearNotice();
     this.tab = b.dataset.tab;
@@ -1021,6 +1049,110 @@ bind() {
       }
     }
   }
+}
+bindEntryReordering(list) {
+  const key = list.dataset.reorderList;
+  const rows = Array.from(list.children);
+  if (rows.length < 2) return;
+
+  let drag;
+  let marker;
+  let frame;
+  let suppressClick = false;
+
+  const updateTarget = () => {
+    // Each row midpoint divides the insertion slots above and below it.
+    const next = rows.findIndex(row => {
+      const { top, height } = row.getBoundingClientRect();
+      return drag.y < top + height / 2;
+    });
+    const slot = next < 0 ? rows.length : next;
+    const { left, right } = list.getBoundingClientRect();
+    const withinList = drag.x >= left && drag.x <= right;
+    drag.to = withinList ? slot - Number(slot > drag.from) : drag.from;
+    const target = drag.to === drag.from ? null : rows[Math.min(slot, rows.length - 1)];
+    const position = next < 0 ? 'after' : 'before';
+    if (target === marker && (!marker || marker.dataset.dropPosition === position)) return;
+    marker?.removeAttribute('data-drop-position');
+    marker = target;
+    if (marker) marker.dataset.dropPosition = position;
+  };
+
+  const finish = () => {
+    cancelAnimationFrame(frame);
+    frame = undefined;
+    marker?.removeAttribute('data-drop-position');
+    marker = null;
+    rows[drag.from].classList.remove('entry-dragging');
+    drag = null;
+  };
+
+  const scroll = () => {
+    frame = undefined;
+    if (!list.isConnected) return finish();
+    const edge = 60;
+    const bottomEdge = window.innerHeight - edge;
+    const { left, right, top, bottom } = list.getBoundingClientRect();
+    if (drag.x < left || drag.x > right) return;
+    let distance = 0;
+    if (drag.y < edge && top < edge) distance = drag.y - edge;
+    if (drag.y > bottomEdge && bottom > bottomEdge) distance = drag.y - bottomEdge;
+    if (!distance) return;
+    const previousScroll = window.scrollY;
+    window.scrollBy(0, Math.max(-18, Math.min(18, distance / 3)));
+    if (window.scrollY === previousScroll) return;
+    updateTarget();
+    frame = requestAnimationFrame(scroll);
+  };
+
+  list.addEventListener('pointerdown', event => {
+    const handle = event.target.closest('.reorder-handle');
+    if (!handle || !event.isPrimary || event.button !== 0 || drag) return;
+    const from = Number(handle.closest('[data-entry-index]').dataset.entryIndex);
+    drag = { id: event.pointerId, from, to: from, startX: event.clientX, startY: event.clientY };
+    suppressClick = false;
+    handle.setPointerCapture(event.pointerId);
+  });
+  list.addEventListener('pointermove', event => {
+    if (event.pointerId !== drag?.id) return;
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+    if (!suppressClick) {
+      if (Math.hypot(event.clientX - drag.startX, drag.y - drag.startY) < 6) return;
+      suppressClick = true;
+      rows[drag.from].querySelector('details').open = false;
+      rows[drag.from].classList.add('entry-dragging');
+    }
+    updateTarget();
+    frame ??= requestAnimationFrame(scroll);
+  });
+  list.addEventListener('pointerup', event => {
+    if (event.pointerId !== drag?.id) return;
+    if (suppressClick) {
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      updateTarget();
+    }
+    const { from, to } = drag;
+    finish();
+    this.moveEntry(key, from, to);
+  });
+  for (const type of ['pointercancel', 'lostpointercapture']) {
+    list.addEventListener(type, event => {
+      if (event.pointerId === drag?.id) finish();
+    });
+  }
+  list.addEventListener('click', event => {
+    if (event.target.closest('.reorder-handle') && suppressClick && event.detail > 0) {
+      event.preventDefault();
+      suppressClick = false;
+    }
+    const button = event.target.closest('[data-move]');
+    if (button) {
+      const from = Number(button.closest('[data-entry-index]').dataset.entryIndex);
+      this.moveEntry(key, from, from + Number(button.dataset.move));
+    }
+  });
 }
 bindCatalog() {
   this.querySelectorAll('[data-catalog]').forEach(b => b.onclick = () => {
