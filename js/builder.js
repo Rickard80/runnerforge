@@ -1175,7 +1175,7 @@ print() {
   w.document.write('<!doctype html><html><head><title>' + this.esc(this.s.name || 'Runner') +
     '</title><style>body{margin:0} .sheet{width:210mm;height:273.5mm;position:relative;background-image:url("' +
     new URL('../images/clean-template.png', import.meta.url).href +
-    '");background-size:100% 100%;container-type:inline-size} .overlay{position:absolute;font-family:Arial,sans-serif;font-size:9px;color:#29140d;white-space:nowrap;overflow:hidden} .wound{position:absolute;border-radius:50%;background:#5d2e20} .portrait{position:absolute;left:67.6%;top:12.1%;width:27.2%;height:21.0%;object-fit:cover;clip-path:ellipse(49% 49% at 50% 50%)}' +
+    '");background-size:100% 100%;container-type:inline-size} .overlay{position:absolute;font-family:Arial,sans-serif;font-size:9px;color:#29140d;white-space:nowrap;overflow:hidden} .wound{position:absolute;border-radius:50%;background:#5d2e20}' +
     '.sheet-notes{box-sizing:border-box;height:273.5mm;padding:14mm;overflow:hidden;font:11pt/1.5 Arial,sans-serif}' +
     '.sheet-notes h2{margin:0 0 .5em} .sheet-notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}' +
     '@page{size:210mm 273.85mm;margin:0}' +
@@ -1214,7 +1214,7 @@ sheetHTML() {
     .map((v, i) => this.sheetOverlayHTML(v, x, y + i * step, w, 1.7, size, undefined, transform)).join('');
   let h = '<div class="sheet">';
   // Coordinates measured against correctedAlignment.webp (1571 × 2048), scaled as percentages.
-  h += this.sheetOverlayHTML(s.name, 21, 4.0, 35, 3, 2.5, 'center');
+  h += this.sheetOverlayHTML(s.name, 21, 4.0, 32, 3, 2.5, 'center');
   const attrX = [6.1, 15.3, 24.3, 33.1, 42.5, 51.4];
   [...ATTRIBUTES.map(a => s.attributes[a]), s.edge].forEach((value, i) => h += this.sheetOverlayHTML(value, attrX[i], 12.0, 6.1, 3.1, 2.0,
     'center'));
@@ -1291,7 +1291,10 @@ sheetWoundHTML(x, y) {
 }
 
 sheetPortraitHTML(portrait) {
-  return `<img class="portrait" src="${portrait}" alt="Character portrait">`;
+  const mask = this.esc(new URL('../images/avatar-mask.webp', import.meta.url).href);
+  // Align the full square mask with the painted opening on the sheet.
+  const placement = 'position:absolute;left:64.8%;top:8.8%;width:32.8%;aspect-ratio:1;object-fit:cover';
+  return `<img class="portrait" src="${this.esc(portrait)}" alt="Character portrait" style="${placement};mask:url(&quot;${mask}&quot;) center / 100% 100% no-repeat;mask-mode:luminance">`;
 }
 }
 customElements.define('anarchy-builder', AnarchyBuilder);
