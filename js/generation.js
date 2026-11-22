@@ -1,4 +1,4 @@
-import { AMP_PROFILES, ATTRIBUTES, EMERGED_AMP, LEVELS, LIMITS, SKILLS } from './data.js';
+import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, LEVELS, LIMITS, SKILLS } from './data.js';
 import { CATALOG } from './catalog.js';
 import { calc, equipArmorAmp, maxed, pick } from './model.js';
 
@@ -46,13 +46,12 @@ export function upgradeGeneratedAttribute(s, target = LEVELS[s.level], linkedOnl
     return cost && cost <= remaining && (!linkedOnly || s.skills.some(skill => skill.attribute === name));
   });
   if (!candidates.length) return false;
-  const lowest = Math.min(...candidates.map(name => Number(s.attributes[name])));
-  const chosen = pick(candidates.filter(name => Number(s.attributes[name]) === lowest));
+  const chosen = pick(candidates);
   s.attributes[chosen]++;
   return true;
 }
 
-function addTraining(s, concept, target, [name, ...specializations], rating = 3, raiseExisting = false) {
+function addTraining(s, concept, target, [name, ...specializations]) {
   let skill = s.skills.find(row => row.name === name);
   if (!skill) {
     if (s.skills.length >= maxSkills) return false;
@@ -60,7 +59,9 @@ function addTraining(s, concept, target, [name, ...specializations], rating = 3,
     skill = { name, rating: 0, attribute, specialization: '', specializations: [] };
     s.skills.push(skill);
   }
-  const newRating = skill.rating ? Math.min(skill.rating + Number(raiseExisting), target.skill) : rating;
+  const newRating = skill.rating
+    ? Math.min(skill.rating + 1, target.skill)
+    : 3 + Math.floor(Math.random() * (target.skill - 2));
   if (newRating > skill.rating && attributeCost(s, skill.attribute, target)) s.attributes[skill.attribute]++;
   skill.rating = newRating;
   const owned = new Set(skill.specializations.map(normalizeName));
@@ -109,11 +110,12 @@ export function trainGeneratedRunner(s, concept, ampNames) {
   const canTrain = skill => !restrictedSkills.has(skill) || unlocked.has(skill);
   const startingAttribute = s.level === 'Prime Runner' ? 2 : 1;
   s.attributes = Object.fromEntries(ATTRIBUTES.map(name => [name, startingAttribute]));
+  if (CONCEPTS.Muscle.includes(concept)) s.attributes.Strength = 3;
+  if (CONCEPTS.Awakened.includes(concept)) s.attributes.Willpower++;
   s.essence = '6';
 
   for (const skill of concept.skills) {
-    const rating = 3 + Math.floor(Math.random() * (target.skill - 2));
-    addTraining(s, concept, target, [skill, ...(concept.specializations?.[skill] ?? [])], rating);
+    addTraining(s, concept, target, [skill, ...(concept.specializations?.[skill] ?? [])]);
   }
 
   for (const item of s.items) {
@@ -123,9 +125,16 @@ export function trainGeneratedRunner(s, concept, ampNames) {
   const claimed = new Set();
   const conceptEquipment = new Set((concept.equipment ?? []).map(normalizeName));
   function buyAmp(runner, name, { training, selected }) {
-    for (const row of training) if (!addTraining(runner, concept, target, row)) return false;
     const profile = AMP_PROFILES[name];
-    if (profile.weaponSkill && !addTraining(runner, concept, target, [profile.weaponSkill])) return false;
+    const requiredSkill = profile.group === 'Vehicle' ? 'Piloting' : profile.weaponSkill;
+    const ampSkills = new Map(training.map(([skill, ...specs]) => [skill, specs]));
+    for (const skill of [...(profile.unlocks ?? []), requiredSkill]) {
+      if (skill && !ampSkills.has(skill)) ampSkills.set(skill, []);
+    }
+    for (const row of ampSkills) {
+      const [skill, specs] = row;
+      if (!addTraining(runner, concept, target, [skill, ...specs])) return false;
+    }
     if (profile.group === 'Weapon Amp') {
       const weapons = runner.items.filter(item => item.type === 'weapon' && !conceptEquipment.has(normalizeName(item.name)));
       const matchingNames = new Set([name, ...(profile.replaces ?? [])].map(normalizeName));
@@ -149,8 +158,6 @@ export function trainGeneratedRunner(s, concept, ampNames) {
 
   for (const name of ampNames) {
     const profile = AMP_PROFILES[name];
-    // Track Amp bonuses separately from skill access.
-    for (const skill of profile.unlocks ?? []) addTraining(s, concept, target, [skill]);
     const training = getAmpTraining(profile, canTrain);
     buyAmp(s, name, training);
     reserveTraining(training);
@@ -224,7 +231,7 @@ export function trainGeneratedRunner(s, concept, ampNames) {
     });
     while (candidates.length) {
       const name = candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
-      if (tryTraining(s, trial => addTraining(trial, concept, target, [name], 3, true))) return true;
+      if (tryTraining(s, trial => addTraining(trial, concept, target, [name]))) return true;
     }
     return false;
   }
