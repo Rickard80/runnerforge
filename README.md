@@ -2,7 +2,10 @@
 
 <p style="max-width: min(210px, 30%); margin-left: 0.5rem; float: right;"><img width="210" src="images/rickOrc.webp" /></p>
 Every run starts with a name, a loadout, and a credstick. Runner Forge is your offline workbench for **Shadowrun Anarchy 2.0**. Build your runner by hand, let the generator put together a draft, and see how much nuyen you’ve got left before you hit the street. Your browser keeps the local saves.
-## Start
+
+https://rickard80.github.io/runnerforge/
+
+## Local install
 Extract the archive, open a terminal in this directory, and run:
 
 ```sh

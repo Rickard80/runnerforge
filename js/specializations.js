@@ -60,7 +60,13 @@ export const SPECIALIZATIONS = {
     "Data Search",
     "Host Intrusion"
   ],
+  "Tasking": [
+    "Compilation",
+    "Complex Forms",
+    "Decompilation"
+  ],
   "Engineering": [
+    "Armorer",
     "Automotive",
     "Demolitions",
     "Repair"
@@ -77,6 +83,7 @@ export const SPECIALIZATIONS = {
   ],
   "Conjuring": [
     "Air Spirits",
+    "Spirits of Beasts",
     "Earth Spirits",
     "Fire Spirits",
     "Water Spirits"
@@ -89,12 +96,15 @@ export const SPECIALIZATIONS = {
   ],
   "Influence": [
     "Etiquette",
+    "Impersonation",
     "Leadership",
-    "Negotiation"
+    "Negotiation",
+    "Performance"
   ],
   "Network": [
     "Corporate",
     "Criminal",
+    "Music Scene",
     "Street"
   ],
   "Intimidation": [

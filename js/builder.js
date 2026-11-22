@@ -4,8 +4,7 @@ import {
   LEVELS,
   SKILLS,
   CONCEPTS,
-  DEFAULT_AMPS,
-  AMP_SOURCES,
+  AMP_PROFILES,
   SHADOW_AMP_RULES_SOURCE
 } from './data.js';
 import {
@@ -25,7 +24,8 @@ import {
   blank,
   calc,
   maxed,
-  priceSkill
+  priceSkill,
+  priceAmp
 } from './model.js';
 import './components/field.js';
 import './components/panel.js';
@@ -37,6 +37,39 @@ const STORE = 'anarchy2.characters.v1';
 const ampReviewNote = source => source
   ? `Review Amp components and rating, ${source}.`
   : `Review the general Shadow Amp rules, ${SHADOW_AMP_RULES_SOURCE}.`;
+const makeAmp = name => {
+  const { rating, source, effect, essenceLoss } = AMP_PROFILES[name];
+  return {
+    name, rating, source, notes: effect,
+    ...(essenceLoss ? { essenceLoss } : {})
+  };
+};
+const catalogs = {
+  gear: Object.entries(CATALOG).filter(([type]) => type !== 'vehicle').flatMap(([type, items]) =>
+    items.filter(item => AMP_PROFILES[item.name]?.group !== 'Weapon Amp')
+      .map(item => ({ ...item, type, category: type[0].toUpperCase() + type.slice(1) }))),
+  magic: Object.entries(AMP_PROFILES).map(([name, profile]) => ({
+    ...profile,
+    name,
+    type: 'amp',
+    category: profile.group,
+    cost: priceAmp(profile)
+  }))
+};
+const legacyRoles = new Map([
+  ['Fighter', 'Muscle'], ['Magician', 'Awakened'], ['Technologist', 'Tech'], ['Social', 'Influence']
+]);
+const conceptsForRole = role => {
+  if (role === 'Any') return Object.values(CONCEPTS).flat();
+  return Object.hasOwn(CONCEPTS, role) ? CONCEPTS[role] : [];
+};
+const restoreCharacter = saved => {
+  const s = { ...blank(), ...saved };
+  s.role = legacyRoles.get(s.role) ?? s.role;
+  if (s.role !== 'Any' && !Object.hasOwn(CONCEPTS, s.role)) s.role = 'Any';
+  if (!conceptsForRole(s.role).some(c => c.name === s.concept)) s.concept = 'Random';
+  return s;
+};
 const normalizeName = value => String(value ?? '').trim().toLocaleLowerCase();
 const alphabetical = (a, b) => String(a.name ?? a).localeCompare(String(b.name ?? b), undefined, {
   sensitivity: 'base'
@@ -52,9 +85,10 @@ const rangedWeapon = item => {
   return /(pistol|rifle|shotgun|smg|machine gun|launcher|bow|crossbow|taser|revolver)/i.test(item.name);
 };
 const meleeWeapon = item => item.type === 'weapon' && !rangedWeapon(item);
+const sheetItemType = { weapon: 'Weapon', spell: 'Spell', 'complex form': 'Complex Form' };
 const sortedItems = items => [...items].sort((a, b) => {
-  const rank = item => rangedWeapon(item) ? 0 : meleeWeapon(item) ? 1 : item.type === 'armor' ? 2 : item.type ===
-    'spell' ? 3 : 4;
+  const rank = item => rangedWeapon(item) ? 0 : meleeWeapon(item) ? 1 : item.type === 'armor' ? 2 :
+    Object.hasOwn(sheetItemType, item.type) ? 3 : 4;
   return rank(a) - rank(b) || alphabetical(a, b);
 });
 const uniqueByName = items => items.filter((item, index, arr) => arr.findIndex(other => normalizeName(other.name) ===
@@ -74,14 +108,22 @@ const pickUnique = (pool, count) => {
   return out;
 };
 // Avoid repeated template stems or endings within a character's generated personality.
+const dispositionEndings = [
+  ['even when the payout is tempting', 'despite the payout'],
+  ['especially when everyone else is panicking', 'when others panic'],
+  ['unless the facts prove otherwise', 'until proven wrong'],
+  ['before the situation turns ugly', 'before trouble hits']
+];
 const personalityParts = text => {
   const value = String(text).trim();
   const cue = value.split(/\s+—\s*/);
   if (cue.length > 1) return [cue[0].trim(), cue.slice(1).join(' — ').trim()];
-  const disposition = value.match(
-    /^(.*?)\s+(even when the payout is tempting|especially when everyone else is panicking|unless the facts prove otherwise|before the situation turns ugly)\.?$/i
-    );
-  return disposition ? [disposition[1].trim(), disposition[2].trim()] : [value, ''];
+  const disposition = value.replace(/\.$/, '');
+  for (const [original, shortened] of dispositionEndings) {
+    const ending = [original, shortened].find(ending => disposition.endsWith(' ' + ending));
+    if (ending) return [disposition.slice(0, -ending.length).trimEnd(), original];
+  }
+  return [value, ''];
 };
 const pickDistinctPersonality = (pool, count) => {
   const available = [...new Set(pool)];
@@ -130,8 +172,10 @@ export class AnarchyBuilder extends HTMLElement {
     this.s = blank();
     this.tab = 'identity';
     this.notice = '';
-    this.catalogSearch = '';
-    this.catalogType = 'all';
+    this.catalogFilters = {
+      gear: { search: '', category: '' },
+      magic: { search: '', category: '' }
+    };
     this.loadedName = null;
   }
   connectedCallback() {
@@ -170,12 +214,18 @@ export class AnarchyBuilder extends HTMLElement {
       'Commlinks are included for free and cannot be purchased.');
     if (key === 'items' && obj.type === 'weapon' && this.s.items.filter(x => x.type === 'weapon').length >= 4)
     return this.notify('Maximum 4 weapons.');
+    if (key === 'amps' && obj.essenceLoss) this.changeEssence(-obj.essenceLoss);
     this.s[key].push(obj);
     this.update()
   }
   remove(key, i) {
+    if (key === 'amps' && this.s.amps[i]?.essenceLoss) this.changeEssence(this.s.amps[i].essenceLoss);
     this.s[key].splice(i, 1);
     this.update()
+  }
+  changeEssence(amount) {
+    const essence = Number(String(this.s.essence || 6).replace(',', '.'));
+    if (Number.isFinite(essence)) this.s.essence = String(Math.min(6, essence + amount));
   }
   moveEntry(key, from, to) {
     const entries = this.s[key];
@@ -226,7 +276,7 @@ export class AnarchyBuilder extends HTMLElement {
     if (!name) return;
     const saved = this.saves[name];
     if (!saved) return;
-    this.s = structuredClone(saved);
+    this.s = restoreCharacter(structuredClone(saved));
     this.loadedName = name;
     this.notify('Loaded ' + name)
   }
@@ -248,10 +298,7 @@ export class AnarchyBuilder extends HTMLElement {
     try {
       const v = JSON.parse(await file.text());
       if (!v.attributes || !Array.isArray(v.skills)) throw Error('Not a character file');
-      this.s = {
-        ...blank(),
-        ...v
-      };
+      this.s = restoreCharacter(v);
       this.loadedName = null;
       this.notify('Imported ' + (v.name || 'unnamed character'))
     } catch (e) {
@@ -269,27 +316,28 @@ export class AnarchyBuilder extends HTMLElement {
     editor.open(file)
   }
   randomize() {
-    this.loadedName = null;
     const s = blank();
-    const options = CONCEPTS.filter(({ name, role }) => (this.s.role === 'Any' || role === this.s.role) &&
-      (this.s.concept === 'Random' || name === this.s.concept));
+    const options = conceptsForRole(this.s.role).filter(c => this.s.concept === 'Random' || c.name === this.s.concept);
     if (!options.length) return this.notify('No concept matches that role family.');
+    this.loadedName = null;
     const bag = options.flatMap(c => Array(c.weight).fill(c));
     const c = pick(bag);
     s.level = this.s.level;
     s.role = this.s.role;
     s.concept = this.s.concept;
     s.personality = this.s.personality;
-    s.metatype = pick(['Human', 'Human', 'Elf', 'Dwarf', 'Ork', 'Troll']);
+    s.metatype = c.metatype ?? pick(['Human', 'Human', 'Elf', 'Dwarf', 'Ork', 'Troll']);
     s.edge = LIMITS[s.metatype][5];
     s.name = c.name + ' ' + Math.floor(Math.random() * 90 + 10);
     const target = LEVELS[s.level];
+    const emerged = c.amps.includes('Emerged');
     const pri = c.attribute,
       limit = LIMITS[s.metatype];
     const attPoints = s.level === 'Ganger' ? 12 : s.level === 'Runner' ? 14 : 16;
     let attempts = 0;
+    const secondaryWeights = emerged ? { Willpower: 5, Charisma: 5 } : { Willpower: 3 };
+    const weights = ATTRIBUTES.flatMap(a => Array(a === pri ? 8 : secondaryWeights[a] ?? 2).fill(a));
     while (ATTRIBUTES.reduce((n, a) => n + s.attributes[a], 0) < attPoints && attempts++ < 150) {
-      const weights = ATTRIBUTES.flatMap((a, i) => Array(a === pri ? 8 : a === 'Willpower' ? 3 : 2).fill(a));
       const a = pick(weights),
         j = ATTRIBUTES.indexOf(a);
       if (s.attributes[a] >= limit[j]) continue;
@@ -297,22 +345,25 @@ export class AnarchyBuilder extends HTMLElement {
       s.attributes[a]++
     }
     const count = s.level === 'Ganger' ? 24 : s.level === 'Runner' ? 30 : 36;
-    let pool = 0;
     const focus = c.skills,
-      extras = SKILLS.map(x => x[0]);
+      extras = SKILLS.map(([name]) => name).filter(name => name !== 'Tasking');
+    const startingSkills = emerged ? focus : Object.keys(c.specializations ?? {});
+    const makeSkill = name => ({
+      name,
+      rating: 3,
+      attribute: c.skillAttributes?.[name] ?? SKILLS.find(([skill]) => skill === name)[1],
+      specialization: '',
+      specializations: [...(c.specializations?.[name] ?? [])]
+    });
+    s.skills = startingSkills.map(makeSkill);
+    let pool = s.skills.length * 3;
     let skillAttempts = 0;
     while (pool < count && skillAttempts++ < 2000) {
-      let n = pick(Math.random() < .90 ? focus : extras);
-      let row = s.skills.find(x => x.name === n);
+      const n = pick(Math.random() < .90 ? focus : extras);
+      const row = s.skills.find(x => x.name === n);
       if (!row) {
         if (s.skills.length >= 11) continue;
-        row = {
-          name: n,
-          rating: 3,
-          attribute: SKILLS.find(x => x[0] === n)?.[1] || 'Logic',
-          specialization: ''
-        };
-        s.skills.push(row);
+        s.skills.push(makeSkill(n));
         pool += 3;
         continue
       }
@@ -326,22 +377,14 @@ export class AnarchyBuilder extends HTMLElement {
       s.dispositions = pickDistinctPersonality(DISPOSITIONS, 2);
       s.cues = pickDistinctPersonality(STREETWISE_CUES, 2)
     }
-    const magic = c.role === 'Magician';
-    const ampCount = magic ? 3 : 4;
-    const fallbackAmps = DEFAULT_AMPS.filter(name => magic || name !== 'Counterspelling Focus');
-    const ampChoices = [...new Set([...c.amps, ...fallbackAmps])];
-    for (let i = 0; i < ampCount && ampChoices.length; i++) {
-      const index = i === 0 ? 0 : Math.floor(Math.random() * ampChoices.length);
-      const name = ampChoices.splice(index, 1)[0];
-      const source = AMP_SOURCES[name] ?? null;
-      s.amps.push({
-        name,
-        rating: i === 0 ? 4 : 2,
-        source,
-        notes: ampReviewNote(source)
-      })
-    } // Equipment, armor, weapons and spells are separate categories and limits.
-    const used = new Set();
+    const awakened = CONCEPTS.Awakened.includes(c);
+    const spellCount = c.spellCount ?? (awakened ? 2 : 0);
+    const ampNames = [...c.amps];
+    if (c.vehicleGroup) ampNames.push(pick(CATALOG.vehicle.filter(vehicle => vehicle.group === c.vehicleGroup)).name);
+    s.amps = ampNames.map(makeAmp);
+    s.essence = String(6 - ampNames.reduce((loss, name) => loss + (AMP_PROFILES[name].essenceLoss ?? 0), 0));
+    const used = new Set(ampNames.flatMap(name => AMP_PROFILES[name].replaces ?? []).map(normalizeName));
+    if (emerged) ['Cyberdeck', 'Datajack', 'Trodes'].forEach(name => used.add(normalizeName(name)));
     const addCatalog = (type, entry) => {
       if (!entry || used.has(normalizeName(entry.name))) return;
       used.add(normalizeName(entry.name));
@@ -364,20 +407,19 @@ export class AnarchyBuilder extends HTMLElement {
     }));
     // Prefer concept-relevant weapons but never force Heavy pistol.
     const firearmFocus = c.skills.includes('Firearms') || c.skills.includes('Heavy Weapons');
-    const weaponCount = magic ? 1 : (firearmFocus ? 2 : 1);
+    const weaponCount = !awakened && firearmFocus ? 2 : 1;
     const chosenWeapons = pickUnique(firearmFocus ? ranged : melee, weaponCount);
     if (!chosenWeapons.length) chosenWeapons.push(...pickUnique(gearPool('weapon', used), 1));
     chosenWeapons.forEach(v => addCatalog('weapon', v));
-    if (magic) {
-      const spells = gearPool('spell', used);
-      pickUnique(spells, Math.min(2, spells.length)).forEach(v => addCatalog('spell', v))
-    }
+    const spells = gearPool('spell', used).filter(item => !c.spellGroup || item.group === c.spellGroup);
+    pickUnique(spells, spellCount).forEach(v => addCatalog('spell', v));
+    if (emerged) pickUnique(gearPool('complex form', used), 2).forEach(v => addCatalog('complex form', v));
+    const equipment = c.equipment ?? [];
+    equipment.forEach(name => addCatalog('equipment', CATALOG.equipment.find(item => item.name === name)));
     const equipmentPool = gearPool('equipment', used);
-    const equipmentCount = Math.min(4, Math.max(1, Math.floor(Math.random() * 4) + 1));
+    const equipmentCount = Math.max(0, Math.floor(Math.random() * 4) + 1 - equipment.length);
     pickUnique(equipmentPool, equipmentCount).forEach(v => addCatalog('equipment', v));
     s.skills = sortedSkills(uniqueByName(s.skills)).slice(0, 11);
-    s.amps = sortedAmps(uniqueByName(s.amps)).slice(0, 11);
-    s.items = sortedItems(s.items); // Attribute growth takes priority over discretionary Shadow Amp upgrades.
     // At 20,000¥ or more, spend on the lowest affordable attribute linked to a skill.
     // Keep applying eligible upgrades while the character still has at least 20,000¥.
     // A single increase may cost only 10,000¥, leaving enough for another increase.
@@ -386,12 +428,6 @@ export class AnarchyBuilder extends HTMLElement {
     while (calc(s).remaining >= 20000 && attributeUpgradeAttempts++ < ATTRIBUTES.length * 8) {
       if (!upgradeGeneratedAttribute(s, target)) break;
       this.lastGeneratedAttributeUpgrade = true;
-    }
-    let ampUpgradeAttempts = 0;
-    while (calc(s).remaining >= 5000 && ampUpgradeAttempts++ < 35) {
-      const eligible = s.amps.filter(amp => amp.rating < 6);
-      if (!eligible.length) break;
-      pick(eligible).rating++;
     }
     s.skills = sortedSkills(s.skills);
     s.amps = sortedAmps(s.amps);
@@ -518,8 +554,7 @@ export class AnarchyBuilder extends HTMLElement {
 
   identityHTML() {
     const { role, concept, personality } = this.s;
-    const roles = ['Any', 'Fighter', 'Magician', 'Technologist', 'Specialist', 'Social'];
-    const availableConcepts = CONCEPTS.filter(c => role === 'Any' || c.role === role);
+    const availableConcepts = [...conceptsForRole(role)].sort(alphabetical);
     const concepts = ['Random', ...availableConcepts.map(c => c.name)];
     const source = availableConcepts.find(c => c.name === concept)?.source;
 
@@ -528,10 +563,10 @@ export class AnarchyBuilder extends HTMLElement {
         this.field('Street name', 'name'),
         this.field('Metatype', 'metatype', 'text', Object.keys(LIMITS)),
         this.field('Level of play', 'level', 'text', Object.keys(LEVELS)),
-        this.field('Role family', 'role', 'text', roles),
+        this.field('Role family', 'role', 'text', ['Any', ...Object.keys(CONCEPTS)]),
         this.field('Concept', 'concept', 'text', concepts),
       '</div>',
-      source ? `<p class="muted">Anarchy 2.0 concept reference · ${this.esc(source)}</p>` : '',
+      source ? `<p class="muted">Concept reference · ${this.esc(source)}</p>` : '',
       `<label class="check"><input type="checkbox" data-check="personality" ${personality ? 'checked' : ''}> Generate personality</label>`,
       '<div class="actions">',
         '<button data-action="generate" class="primary">Generate character</button>',
@@ -633,8 +668,9 @@ export class AnarchyBuilder extends HTMLElement {
 
   ampsHTML() {
     return [
-      `<div class="actions"><button data-action="addamp">+ Add Shadow Amp</button>${this.field('Essence', 'essence')}</div>`,
-      `<p class="muted">Enter the total Amp rating yourself. Cost = rating × 5,000¥. See ${SHADOW_AMP_RULES_SOURCE} for general Amp rules.</p>`,
+      this.catalogPanelHTML('magic', 'Search Shadow Amps'),
+      `<div class="actions"><button data-action="addamp">+ Custom Shadow Amp</button>${this.field('Essence', 'essence')}</div>`,
+      `<p class="muted">Each Amp rating point costs 5,000¥. See ${SHADOW_AMP_RULES_SOURCE} for the general Amp rules.</p>`,
       '<div class="stack" data-reorder-list="amps">',
         ...this.s.amps.map((amp, index) => this.ampRowHTML(amp, index)),
       '</div>'
@@ -643,43 +679,49 @@ export class AnarchyBuilder extends HTMLElement {
 
   ampRowHTML(amp, index) {
     const path = `amps.${index}`;
+    const source = amp.source || 'Custom shadow amp';
     return [
       `<div class="entry" data-entry-index="${index}">`,
         this.reorderHandleHTML('amps', index, amp.name || 'Shadow Amp'),
         this.field('Amp name', `${path}.name`),
         this.field('Rating', `${path}.rating`, 'number'),
         this.field('Effect / components', `${path}.notes`, 'textarea'),
-        `<span class="cost">${money((+amp.rating || 0) * 5000)}</span>`,
+        `<span class="cost">${money(priceAmp(amp))}</span>`,
+        '<details class="amp-source">',
+          `<summary aria-label="Source for ${this.esc(amp.name || 'Shadow Amp')}"><span aria-hidden="true">ⓘ</span></summary>`,
+          `<span class="amp-source-text">${this.esc(source)}</span>`,
+        '</details>',
         `<button data-remove="${path}" class="small">×</button>`,
       '</div>'
     ].join('');
   }
 
   gearHTML() {
-    const categories = Object.keys(CATALOG).sort((a, b) => a.localeCompare(b))
-      .map(category => this.catalogCategoryHTML(category));
-
     return [
-      '<div class="formgrid">',
-        '<label class="field"><span>Search rulebook catalog</span>',
-          `<input id="catalogSearch" placeholder="Search names or type" value="${this.esc(this.catalogSearch)}">`,
-        '</label>',
-        '<label class="field"><span>Category</span><select id="catalogType">',
-          '<option value="all">All categories</option>',
-          ...categories,
-        '</select></label>',
-      '</div>',
-      `<div class="catalog" id="catalog">${this.catalogHTML()}</div>`,
+      this.catalogPanelHTML('gear', 'Search rulebook catalog'),
       '<div class="actions"><button data-action="additem">+ Custom entry</button></div>',
       '<div class="stack" data-reorder-list="items">',
         ...this.s.items.map((_, index) => this.itemRowHTML(index)),
       '</div>',
-      '<p class="muted">Standard equipment and weapons cost 2,500¥; expert weapons and spells cost 5,000¥; armor costs 2,500¥ per point.</p>'
+      '<p class="muted">Standard equipment and weapons cost 2,500¥. Expert weapons, spells and complex forms cost 5,000¥. Armor costs 2,500¥ per point.</p>'
     ].join('');
   }
 
-  catalogCategoryHTML(category) {
-    return `<option value="${category}" ${this.catalogType === category ? 'selected' : ''}>${category}</option>`;
+  catalogPanelHTML(tab, searchLabel) {
+    const filters = this.catalogFilters[tab];
+    const categories = [...new Set(catalogs[tab].map(item => item.category))].sort(alphabetical);
+    return [
+      '<div class="formgrid">',
+        `<label class="field"><span>${this.esc(searchLabel)}</span>`,
+          `<input id="catalogSearch" placeholder="Search names or type" value="${this.esc(filters.search)}">`,
+        '</label>',
+        '<label class="field"><span>Category</span><select id="catalogType">',
+          '<option value="">All categories</option>',
+          ...categories.map(category => `<option value="${this.esc(category)}" ${filters.category === category ? 'selected' : ''}>${this.esc(category)}</option>`),
+        '</select></label>',
+      '</div>',
+      `<div class="catalog" id="catalog">${this.catalogHTML(tab)}</div>`
+    ].join('');
   }
 
   itemRowHTML(index) {
@@ -688,7 +730,7 @@ export class AnarchyBuilder extends HTMLElement {
       `<div class="entry" data-entry-index="${index}">`,
         this.reorderHandleHTML('items', index, this.s.items[index].name || 'item'),
         this.field('Name', `${path}.name`),
-        this.field('Type', `${path}.type`, 'text', ['weapon', 'spell', 'armor', 'equipment']),
+        this.field('Type', `${path}.type`, 'text', ['Weapon', 'Armor', 'Spell', 'Complex form', 'Equipment']),
         this.field('Description / type', `${path}.description`),
         this.field('Cost (¥)', `${path}.cost`, 'number'),
         `<button data-remove="${path}" class="small">×</button>`,
@@ -828,24 +870,33 @@ export class AnarchyBuilder extends HTMLElement {
     return `<div class="toast" role="status">${this.esc(notice)}</div>`;
   }
 
-  catalogHTML() {
-    const q = this.catalogSearch.trim().toLocaleLowerCase();
-    const chosen = new Set(this.s.items.map(x => x.type + '|' + x.name));
-    return Object.entries(CATALOG).filter(([type]) => this.catalogType === 'all' || type === this.catalogType).flatMap((
-        [type, arr]) => arr.filter(item => !chosen.has(type + '|' + item.name) && !(type === 'equipment' &&
-        isFreeCommlink(item.name)) && (item.name + ' ' + item.group + ' ' + type).toLocaleLowerCase().includes(q))
-      .map(item => ({
-        type,
-        ...item
-      }))).sort((a, b) => a.name.localeCompare(b.name, undefined, {
-      sensitivity: 'base'
-    }) || a.type.localeCompare(b.type)).map(item => this.catalogItemHTML(item)).join('') || '<p>No available matches.</p>'
+  catalogHTML(tab = this.tab) {
+    const { search, category } = this.catalogFilters[tab];
+    const query = normalizeName(search);
+    const chosen = new Set(this.s.items.map(item => item.type + '|' + item.name));
+    const itemNames = new Set(this.s.items.map(item => normalizeName(item.name)));
+    const ampNames = new Set(this.s.amps.map(amp => normalizeName(amp.name)));
+    const ampGear = new Set(this.s.amps.flatMap(amp =>
+      [amp.name, ...(AMP_PROFILES[amp.name]?.replaces ?? [])]).map(normalizeName));
+    const available = catalogs[tab].filter(item => {
+      if (category && item.category !== category) return false;
+      if (!normalizeName([item.name, item.group, item.category].join(' ')).includes(query)) return false;
+      if (item.type === 'amp') {
+        return !ampNames.has(normalizeName(item.name)) &&
+          ![item.name, ...(item.replaces ?? [])].some(name => itemNames.has(normalizeName(name)));
+      }
+      return !chosen.has(item.type + '|' + item.name) && !ampGear.has(normalizeName(item.name)) &&
+        !(item.type === 'equipment' && isFreeCommlink(item.name));
+    });
+    return available.sort(alphabetical).map(item => this.catalogItemHTML(item)).join('') ||
+      '<p>No available matches.</p>';
   }
 
   catalogItemHTML(item) {
-    const key = `${this.esc(item.type)}|${this.esc(item.name)}|${item.cost}`;
+    const price = item.cost;
+    const key = `${this.esc(item.type)}|${this.esc(item.name)}|${price}`;
     const label = this.esc(item.name);
-    const cost = `${money(item.cost)} · ${this.esc(item.group)}`;
+    const cost = `${money(price)} · ${this.esc(item.group)}`;
     return `<runner-catalog-item data-catalog="${key}" label="${label}" cost="${cost}"></runner-catalog-item>`;
   }
 
@@ -880,10 +931,12 @@ bind() {
     if (/^amps\.\d+\.name$/.test(path)) {
       const amp = this.s.amps[+parts[1]];
       if (Object.hasOwn(amp, 'source') && normalizeName(amp.name) !== normalizeName(val)) {
-        const ampName = Object.keys(AMP_SOURCES).find(name => normalizeName(name) === normalizeName(val));
-        const source = AMP_SOURCES[ampName] ?? null;
-        if (amp.notes === ampReviewNote(amp.source)) amp.notes = ampReviewNote(source);
-        amp.source = source;
+        const ampName = Object.keys(AMP_PROFILES).find(name => normalizeName(name) === normalizeName(val));
+        const profile = AMP_PROFILES[ampName];
+        if (amp.notes === AMP_PROFILES[amp.name]?.effect || amp.notes === ampReviewNote(amp.source)) {
+          amp.notes = profile?.effect ?? ampReviewNote(null);
+        }
+        amp.source = profile?.source ?? null;
       }
     }
     if (parts.length === 1) {
@@ -893,8 +946,7 @@ bind() {
     } else {
       this.s[parts[0]][+parts[1]][parts[2]] = val;
     }
-    if (path === 'role' && this.s.concept !== 'Random' && !CONCEPTS.some(c => c.name === this.s.concept && (val ===
-        'Any' || c.role === val))) this.s.concept = 'Random';
+    if (path === 'role' && !conceptsForRole(val).some(c => c.name === this.s.concept)) this.s.concept = 'Random';
     if (skillChange) {
       const skillIndex = parts[1];
       this.s.skills[skillIndex].specialization = '';
@@ -1024,13 +1076,13 @@ bind() {
   };
   const search = this.querySelector('#catalogSearch');
   if (search) search.oninput = e => {
-    this.catalogSearch = e.target.value;
+    this.catalogFilters[this.tab].search = e.target.value;
     this.querySelector('#catalog').innerHTML = this.catalogHTML();
     this.bindCatalog()
   };
   const category = this.querySelector('#catalogType');
   if (category) category.onchange = e => {
-    this.catalogType = e.target.value;
+    this.catalogFilters[this.tab].category = e.target.value;
     this.querySelector('#catalog').innerHTML = this.catalogHTML();
     this.bindCatalog()
   };
@@ -1155,8 +1207,12 @@ bindEntryReordering(list) {
   });
 }
 bindCatalog() {
-  this.querySelectorAll('[data-catalog]').forEach(b => b.onclick = () => {
+  this.querySelectorAll('button[data-catalog]').forEach(b => b.onclick = () => {
     const [type, name, cost] = b.dataset.catalog.split('|');
+    if (type === 'amp') {
+      if (Object.hasOwn(AMP_PROFILES, name)) this.add('amps', makeAmp(name));
+      return;
+    }
     if (this.s.items.some(item => item.type === type && item.name === name)) return;
     this.add('items', {
       type,
@@ -1231,12 +1287,12 @@ sheetHTML() {
     1.2);
   h += this.sheetOverlayHTML(s.knowledge.join(', '), 5.3, 72.6, 44, 1, 1.2);
   h += this.sheetOverlayHTML(s.essence, 51.6, 72.6, 7, 1, 1.2, 'center');
-  const arms = s.items.filter(v => v.type === 'weapon' || v.type === 'spell');
+  const arms = s.items.filter(v => Object.hasOwn(sheetItemType, v.type));
   arms.slice(0, 4).forEach((v, i) => {
     const catalogType = CATALOG[v.type]?.find(x => normalizeName(x.name) === normalizeName(v.name))?.group;
     const description = catalogType || v.description;
     h += this.sheetOverlayHTML(v.name + ', ' + description, 5.3, 78 + i * 2.16, 43, 1.7, 1.2);
-    h += this.sheetOverlayHTML((v.type === 'spell' ? 'Spell' : 'Weapon'), 49.7, 78.2 + i * 2.16, 9, 1.7, 1, 'center')
+    h += this.sheetOverlayHTML(sheetItemType[v.type], 49.7, 78.2 + i * 2.16, 9, 1.7, 1, 'center')
   });
   const gear = s.items.filter(v => v.type === 'armor' || (v.type === 'equipment' && !isFreeCommlink(v.name)));
   h += lines(gear.map(v => v.name + ' ' + money(v.cost)), 5.3, 89.3, 1.76, 20, 4, 1);

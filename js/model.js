@@ -41,6 +41,7 @@ const blank = () => ({
 const priceSkill = r => Array.from({
   length: Math.max(0, +r || 0)
 }, (_, i) => i < 5 ? 2500 : 5000).reduce((a, b) => a + b, 0);
+const priceAmp = amp => (+amp.rating || 0) * 5000;
 const maxed = s => ATTRIBUTES.filter((a, i) => +s.attributes[a] >= LIMITS[s.metatype][i]).length;
 export function calc(s) {
   const level = LEVELS[s.level];
@@ -53,7 +54,7 @@ export function calc(s) {
     .specializations.filter(v => String(v).trim()).length : String(x.specialization || '').split(',').filter(v =>
       v.trim()).length) * 2500), 0);
   const knowledge = s.knowledge.filter(x => x.trim()).length * 2500;
-  const amps = s.amps.reduce((n, x) => n + (+x.rating || 0) * 5000, 0);
+  const amps = s.amps.reduce((total, amp) => total + priceAmp(amp), 0);
   const items = s.items.reduce((n, x) => n + (x.type === 'equipment' && /commlink/i.test(x.name) ? 0 : (+x.cost || 0)),
     0);
   const spent = attr + skills + knowledge + amps + items;
@@ -90,5 +91,6 @@ export {
   pick,
   blank,
   priceSkill,
+  priceAmp,
   maxed
 };

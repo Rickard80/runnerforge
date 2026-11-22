@@ -1,4 +1,52 @@
 export const CATALOG = {
+  "vehicle": [
+    { name: 'Racing Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 4, Handling 2, Speed 6, Armor 0.' },
+    { name: 'Off-road Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 4, Handling 3, Speed 5, Armor 0.' },
+    { name: 'Combat Bike / Chopper', group: 'Motorcycle', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 0.' },
+    { name: 'Sports Car', group: 'Car', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 0.' },
+    { name: 'Sedan', group: 'Car', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 6, Handling 2, Speed 4, Armor 0.' },
+    { name: 'SUV / Pick-up', group: 'Car', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 7, Handling 1, Speed 4, Armor 0.' },
+    { name: 'Van', group: 'Van', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 8, Handling 1, Speed 3, Armor 0.' },
+    { name: 'Bus / Semi-trailer', group: 'Heavy vehicle', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 10, Handling 0, Speed 2, Armor 0.' },
+    { name: 'Jet-ski', group: 'Watercraft', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 5, Handling 5, Speed 2, Armor 0.' },
+    { name: 'Rigid Inflatable Boat', group: 'Watercraft', rating: 1, source: 'p. 238',
+      effect: 'Pilot 6, Body 5, Handling 4, Speed 3, Armor 0.' },
+    { name: 'Horizon-Doble Revolution Bike', group: 'Motorcycle', rating: 2, source: 'p. 238',
+      effect: 'Pilot 6, Body 5, Handling 2, Speed 6, Armor 0.' },
+    { name: 'Harley-Davidson Centaur', group: 'Motorcycle', rating: 4, source: 'p. 238',
+      effect: 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 3.' },
+    { name: 'Mitsubishi Nightsky', group: 'Car', rating: 9, source: 'p. 238',
+      effect: 'Pilot 6, Body 7, Handling 2, Speed 4, Armor 5. RR 1 on Influence Tests when present.' },
+    { name: 'Artemis Industries Nightwing', group: 'Aircraft', rating: 4, source: 'p. 238',
+      effect: 'Pilot 6, Body 3, Handling 7, Speed 4, Armor 0. Flying. RR 1 on Stealth (physical) Tests.' },
+    { name: 'Reinforced Ford Americar', group: 'Car', rating: 2, source: 'p. 91 (Wild Jane)',
+      effect: 'Sedan. Pilot 6, Body 6, Handling 2, Speed 4, Armor 1. Forward weapon mount.' },
+    { name: 'Eurocar Northstar 2.0', group: 'Car', rating: 6, source: 'p. 97 (Charon)',
+      effect: 'SUV. Pilot 6, Body 7, Handling 1, Speed 4, Armor 1. RR 1 on Piloting (cars). Smuggling compartment and concealed forward weapon mount.' }
+  ],
+  "complex form": [
+    {
+      "name": "Infusion of Firewall",
+      "cost": 5000,
+      "group": "Sustained · protects against Matrix damage and biofeedback",
+      "source": "Anarchy 2.0 Conversion Guide, p. 9"
+    },
+    {
+      "name": "Mirrored Persona",
+      "cost": 5000,
+      "group": "Sustained · creates a virtual decoy",
+      "source": "Anarchy 2.0 Conversion Guide, p. 9"
+    }
+  ],
   "weapon": [
     {
       "name": "Survival knife",
@@ -739,12 +787,6 @@ export const CATALOG = {
       "source": "Reference/example — verify exact price"
     },
     {
-      "name": "Fake SIN",
-      "cost": 2500,
-      "group": "Communications",
-      "source": "Reference/example — verify exact price"
-    },
-    {
       "name": "Micro-transceiver",
       "cost": 2500,
       "group": "Communications",
@@ -844,24 +886,6 @@ export const CATALOG = {
       "name": "Trodes",
       "cost": 2500,
       "group": "Matrix",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Motorcycle",
-      "cost": 2500,
-      "group": "Vehicles & drones",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Car",
-      "cost": 2500,
-      "group": "Vehicles & drones",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Pickup truck",
-      "cost": 2500,
-      "group": "Vehicles & drones",
       "source": "Reference/example — verify exact price"
     },
     {
