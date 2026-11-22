@@ -1,4 +1,5 @@
 import {
+  AMP_PROFILES,
   ATTRIBUTES,
   LIMITS,
   LEVELS
@@ -42,6 +43,22 @@ const priceSkill = r => Array.from({
   length: Math.max(0, +r || 0)
 }, (_, i) => i < 5 ? 2500 : 5000).reduce((a, b) => a + b, 0);
 const priceAmp = amp => (+amp.rating || 0) * 5000;
+const ampArmor = amp => amp.armor ?? AMP_PROFILES[amp.name]?.armor;
+
+export function equipArmorAmp(s, amp) {
+  if (ampArmor(amp) === undefined) return;
+  s.items = s.items.filter(item => item.type !== 'armor');
+  s.amps = s.amps.map(existing => existing.mainArmor ? { ...existing, mainArmor: false } : existing);
+  amp.mainArmor = true;
+}
+
+export function mainArmor(s) {
+  const amp = s.amps.find(amp => amp.mainArmor) ?? s.amps.find(amp => ampArmor(amp) !== undefined);
+  if (amp) return { name: amp.name, protection: ampArmor(amp) };
+  const item = s.items.find(item => item.type === 'armor');
+  return { name: item?.name ?? 'No armor', protection: Number(item?.name.match(/\((\d+)\)/)?.[1] ?? 0) };
+}
+
 const maxed = s => ATTRIBUTES.filter((a, i) => +s.attributes[a] >= LIMITS[s.metatype][i]).length;
 export function calc(s) {
   const level = LEVELS[s.level];

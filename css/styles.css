@@ -396,11 +396,25 @@ nav {
   & .cost {
     font-size: 12px;
     color: var(--color-entry-cost);
-    min-width: 80px
+    min-width: 40px
   }
 
   & runner-field:has(textarea) {
-    flex: 2
+    flex: 2;
+
+    & textarea {
+    field-sizing: content;
+    }
+  }
+
+  & runner-field[path^="amps."][path$=".rating"] {
+    flex: 0 1 70px;
+    min-width: 0;
+    max-width: 70px;
+
+    & .field {
+      min-width: 0;
+    }
   }
 
   /* Compact Amp effects field; other textareas retain their larger size */
@@ -435,6 +449,8 @@ nav {
   }
 
   & .amp-source-text {
+    visibility: hidden;
+    pointer-events: none;
     position: absolute;
     z-index: 2;
     inset-inline-end: 0;
@@ -446,6 +462,17 @@ nav {
     border-radius: 8px;
     background: var(--color-panel-background);
     font-size: 12px;
+  }
+
+  &[open] .amp-source-text,
+  & summary:focus-visible .amp-source-text {
+    visibility: visible;
+  }
+
+  @media (hover: hover) {
+    & summary:hover .amp-source-text {
+      visibility: visible;
+    }
   }
 }
 
@@ -629,7 +656,7 @@ nav {
   position: relative;
   width: 100%;
   aspect-ratio: 1414/1844;
-  background-image: url("../images/clean-template.png");
+  background-image: url("../images/clean-sheet.webp");
   background-size: 100% 100%;
   container-type: inline-size;
   color: var(--color-sheet-text);
