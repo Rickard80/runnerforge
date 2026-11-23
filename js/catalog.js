@@ -1,3 +1,63 @@
+const equipmentByCategory = {
+  Communication: [
+    "Binoculars",
+    "Bug scanner",
+    "Camera",
+    "Directional microphone",
+    "Jammer",
+    "Low-light goggles",
+    "Micro-transceiver",
+    "Motion sensor",
+    "RFID tags",
+    "Thermographic goggles",
+    "White-noise generator",
+  ],
+  Drones: [
+    "Doberman drone",
+    "Fly-Spy drone",
+    "Microdrone",
+    "Rotor drone",
+  ],
+  General: [
+    "Backpack",
+    "Climbing gear",
+    "Disguise kit",
+    "Electronics toolkit",
+    "Flashlight",
+    "Gas mask",
+    "Grappling gear",
+    "Hardware toolkit",
+    "Lockpick set",
+    "Maglock passkey",
+    "Mechanic toolkit",
+    "Respirator",
+    "Rope",
+    "Survival kit",
+    "Tool kit",
+  ],
+  Magic: [
+    "Magical lodge materials",
+    "Reagents",
+    "Spell focus",
+    "Spirit focus",
+  ],
+  Matrix: [
+    "AR glasses",
+    "Cyberdeck",
+    "Datajack",
+    "Electronics kit",
+    "Trodes",
+  ],
+  Medical: [
+    "Antidote kit",
+    "Biotech kit",
+    "DocWagon contract",
+    "First aid supplies",
+    "Medkit",
+    "Trauma patch",
+  ],
+};
+
 export const CATALOG = {
   "vehicle": [
     { name: 'Racing Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
@@ -713,282 +773,7 @@ export const CATALOG = {
       "source": "pp. 148–149"
     }
   ],
-  "equipment": [
-    {
-      "name": "Medkit",
-      "cost": 2500,
-      "group": "Medical",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Trauma patch",
-      "cost": 2500,
-      "group": "Medical",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Antidote kit",
-      "cost": 2500,
-      "group": "Medical",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Biotech kit",
-      "cost": 2500,
-      "group": "Medical",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "First aid supplies",
-      "cost": 2500,
-      "group": "Medical",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Tool kit",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Electronics toolkit",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Mechanic toolkit",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Lockpick set",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Maglock passkey",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Hardware toolkit",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Grappling gear",
-      "cost": 2500,
-      "group": "Tools",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Micro-transceiver",
-      "cost": 2500,
-      "group": "Communications",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Jammer",
-      "cost": 2500,
-      "group": "Communications",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "White-noise generator",
-      "cost": 2500,
-      "group": "Communications",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "RFID tags",
-      "cost": 2500,
-      "group": "Communications",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Binoculars",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Camera",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Microdrone",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Bug scanner",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Directional microphone",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Motion sensor",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Thermographic goggles",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Low-light goggles",
-      "cost": 2500,
-      "group": "Surveillance",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Cyberdeck",
-      "cost": 2500,
-      "group": "Matrix",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Datajack",
-      "cost": 2500,
-      "group": "Matrix",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Electronics kit",
-      "cost": 2500,
-      "group": "Matrix",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "AR glasses",
-      "cost": 2500,
-      "group": "Matrix",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Trodes",
-      "cost": 2500,
-      "group": "Matrix",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Doberman drone",
-      "cost": 2500,
-      "group": "Vehicles & drones",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Fly-Spy drone",
-      "cost": 2500,
-      "group": "Vehicles & drones",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Rotor drone",
-      "cost": 2500,
-      "group": "Vehicles & drones",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Reagents",
-      "cost": 2500,
-      "group": "Magic",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Magical lodge materials",
-      "cost": 2500,
-      "group": "Magic",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Spell focus",
-      "cost": 2500,
-      "group": "Magic",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Spirit focus",
-      "cost": 2500,
-      "group": "Magic",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Survival kit",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Flashlight",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Climbing gear",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Rope",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Disguise kit",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Backpack",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Respirator",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Gas mask",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "Credstick",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    },
-    {
-      "name": "DocWagon contract",
-      "cost": 2500,
-      "group": "General",
-      "source": "Reference/example — verify exact price"
-    }
-  ]
+  equipment: Object.entries(equipmentByCategory).flatMap(([group, names]) =>
+    names.map(name => ({ name, group, cost: 2500, source: 'Reference/example — verify exact price' }))
+  )
 };

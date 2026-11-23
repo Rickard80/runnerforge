@@ -8,6 +8,12 @@ const $ = s => document.querySelector(s),
   money = n => new Intl.NumberFormat('en-US').format(Math.round(n)) + '¥';
 const uid = () => Math.random().toString(36).slice(2, 10);
 const pick = a => a[Math.floor(Math.random() * a.length)];
+export const ALTERNATE_WOUND_PRESETS = {
+  Mental: { attribute: 'Willpower' },
+  Matrix: { attribute: '---', armorName: 'Firewall' },
+  Vehicle: { attribute: '---', armorName: 'Vehicle' }
+};
+
 const blank = () => ({
   name: '',
   metatype: 'Human',
@@ -28,6 +34,15 @@ const blank = () => ({
   essence: '',
   notes: '',
   riskReduction: 0,
+  woundSettings: {
+    mainArmorName: '',
+    mainArmorIncrease: null,
+    alternateArmorName: '',
+    alternateArmorIncrease: null,
+    alternateAttribute: ALTERNATE_WOUND_PRESETS.Mental.attribute,
+    alternateType: 'Mental',
+    vehicleBody: null
+  },
   wounds: {
     light: 0,
     serious: 0,
@@ -52,11 +67,36 @@ export function equipArmorAmp(s, amp) {
   amp.mainArmor = true;
 }
 
+export function woundArmor(s) {
+  const amps = s.amps.filter(amp => ampArmor(amp) !== undefined);
+  const active = amps.find(amp => amp.mainArmor);
+  const orderedAmps = active ? [active, ...amps.filter(amp => amp !== active)] : amps;
+  const armor = [
+    ...orderedAmps.map(amp => ({ name: amp.name, protection: ampArmor(amp) })),
+    ...s.items.filter(item => item.type === 'armor').map(item => ({
+      name: item.name,
+      protection: Number(item.name?.match(/\((\d+)\)/)?.[1] ?? 0)
+    }))
+  ];
+  const alternateName = ALTERNATE_WOUND_PRESETS[s.woundSettings?.alternateType]?.armorName;
+  const [main, alternate] = ['main', 'alternate'].map((slot, index) => ({
+    name: s.woundSettings?.[`${slot}ArmorName`]?.trim() || (index === 1 && alternateName) || armor[index]?.name || '',
+    protection: s.woundSettings?.[`${slot}ArmorIncrease`] ?? armor[index]?.protection ?? 0
+  }));
+  return { main, alternate };
+}
+
 export function mainArmor(s) {
-  const amp = s.amps.find(amp => amp.mainArmor) ?? s.amps.find(amp => ampArmor(amp) !== undefined);
-  if (amp) return { name: amp.name, protection: ampArmor(amp) };
-  const item = s.items.find(item => item.type === 'armor');
-  return { name: item?.name ?? 'No armor', protection: Number(item?.name.match(/\((\d+)\)/)?.[1] ?? 0) };
+  const { main } = woundArmor(s);
+  return { ...main, name: main.name || 'No armor' };
+}
+
+export function woundThresholds(type, resistance, protection = 0) {
+  const base = Number(resistance) || 0;
+  const armor = Number(protection) || 0;
+  if (type === 'Vehicle') return [1, 2, 3].map(multiplier => multiplier * base + armor);
+  const light = base + (type === 'Matrix' ? 0 : armor);
+  return [light, light + 3, light + 6];
 }
 
 const maxed = s => ATTRIBUTES.filter((a, i) => +s.attributes[a] >= LIMITS[s.metatype][i]).length;

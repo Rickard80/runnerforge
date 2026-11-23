@@ -1,5 +1,5 @@
 import { CATALOG } from './catalog.js';
-import { SPECIALIZATIONS } from './specializations.js';
+import { SKILLS, TASKING, specializationOptions } from './specializations.js';
 
 const ATTRIBUTES = ['Strength', 'Agility', 'Willpower', 'Logic', 'Charisma'];
 const LIMITS = {
@@ -29,27 +29,6 @@ const LEVELS = {
     rr: 2
   }
 };
-const SKILLS = [
-  ['Athletics', 'Agility'],
-  ['Close Combat', 'Agility'],
-  ['Firearms', 'Agility'],
-  ['Heavy Weapons', 'Agility'],
-  ['Stealth', 'Agility'],
-  ['Piloting', 'Agility'],
-  ['Survival', 'Willpower'],
-  ['Perception', 'Logic'],
-  ['Electronics', 'Logic'],
-  ['Hacking', 'Logic'],
-  ['Tasking', 'Logic'],
-  ['Engineering', 'Logic'],
-  ['Biotech', 'Logic'],
-  ['Tracking', 'Logic'],
-  ['Conjuring', 'Willpower'],
-  ['Sorcery', 'Willpower'],
-  ['Influence', 'Charisma'],
-  ['Network', 'Charisma'],
-  ['Intimidation', 'Charisma']
-];
 const TECHNOMANCER_SOURCE = 'Anarchy 2.0 Conversion Guide, pp. 8–10';
 const EMERGED_AMP = 'Emerged (Technomancy)';
 
@@ -59,9 +38,13 @@ const coreAmps = (group, source, examples, defaults = {}) =>
   Object.fromEntries(examples.map(([name, rating, effect, options]) =>
     [name, { group, source, rating, effect, ...defaults, ...options }]));
 
-const trainingForSpecialization = name => [name, ...SPECIALIZATIONS[name]];
-const physicalTrainingChoices = SKILLS.filter(([, attribute]) => attribute === 'Agility')
-  .map(([name]) => trainingForSpecialization(name));
+const trainingForSpecialization = name => [name, ...specializationOptions(name).map(([value]) => value)];
+const physicalTrainingChoices = SKILLS.map(name => [
+  name,
+  ...specializationOptions(name)
+    .filter(([, code]) => code.split('/').some(attribute => attribute === 'S' || attribute === 'A'))
+    .map(([value]) => value)
+]).filter(([, ...specializations]) => specializations.length);
 
 const AMP_PROFILES = {
   ...coreAmps('Adept Power', 'p. 89', [
@@ -80,7 +63,7 @@ const AMP_PROFILES = {
     ['Elemental Weapon', 2, '+1 melee weapon DV. Choose an elemental effect.'],
     ['Empathic Sense', 7, 'RR 3 on Perception (social).', { training: [['Perception', 'Social']] }],
     ['Enhanced Perception', 3, 'RR 1 on Perception (physical). Extra sensory effects cost additional rating points.', { training: [['Perception', 'Physical']] }],
-    ['Improved Ability', 6, 'RR 1 on a chosen skill.', { trainingChoices: SKILLS.map(([name]) => [name]) }],
+    ['Improved Ability', 6, 'RR 1 on a chosen skill.', { trainingChoices: SKILLS.map(name => [name]) }],
     ['Improved Attribute', 11, 'RR 1 on Tests with a chosen attribute.'],
     ['Improved Reflexes', 6, '+1 Edge per action scene, +1 action per narration and unlimited extra actions.'],
     ['Light-footed', 5, 'RR 2 on Stealth (physical sneaking).', { training: [['Stealth', 'Physical Sneaking']] }],
@@ -119,7 +102,7 @@ const AMP_PROFILES = {
     ['Universal Omnitech PrimeSkill Reflex Recorder', 6, 'Choose a physical skill specialization. RR 2 on its Tests.', { trainingChoices: physicalTrainingChoices }],
     ['Evo ReflexUltra Reflex Recorders', 8, 'Choose a physical skill specialization. RR 3 on its Tests.', { trainingChoices: physicalTrainingChoices }],
     ['Platelet Factories', 8, 'One additional serious wound box.'],
-    ['Reflex Recorder (Rifles)', 4, 'RR 1 on Ranged Weapons (rifles) Tests, using the published specialization choice.', { training: [['Firearms', 'Rifles']] }],
+    ['Reflex Recorder (Rifles)', 4, 'RR 1 on Ranged Weapons (rifles) Tests, using the published specialization choice.', { training: [['Ranged Weapons', 'Rifles']] }],
     ['Tailored Pheromones', 7, 'RR 1 on Influence Tests.', { training: [['Influence']] }]
   ], { essenceLoss: 0.5 }),
   ...coreAmps('Contact', 'p. 164', [
@@ -128,7 +111,7 @@ const AMP_PROFILES = {
     ['Lawyer', 4, 'RR 2 on Network (government).', { training: [['Network', 'Government']] }],
     ['Mafia Consigliere', 4, 'RR 2 on Network (criminal).', { training: [['Network', 'Criminal']] }],
     ['Mr. Johnson', 6, 'RR 1 on Network (street, criminal and corporate).', { training: [['Network', 'Street', 'Criminal', 'Corporate']] }],
-    ['Talismonger', 2, 'RR 1 on Network (magical).', { training: [['Network', 'Magical']] }],
+    ['Talismonger', 2, 'RR 1 on Network (magic).', { training: [['Network', 'Magic']] }],
     ['University Professor', 2, 'RR 1 on Network (academic).', { training: [['Network', 'Academic']] }],
     ['Bar Owner', 2, 'Contact. RR 1 on Network (street) Tests.', { training: [['Network', 'Street']] }],
     ['Data Haven', 4, 'Contact. RR 1 on Network (Matrix) and Electronics (Matrix search) Tests.', { training: [['Network', 'Matrix'], ['Electronics', 'Matrix Search']] }],
@@ -141,21 +124,21 @@ const AMP_PROFILES = {
     ['Undercover Cop', 2, 'Contact. RR 1 on Network (government) Tests.', { training: [['Network', 'Government']] }]
   ]),
   ...coreAmps('Cyberdeck', 'p. 95', [
-    ['MCT 260', 12, 'Firewall 3, Attack 2. RR 1 on Cracking and an additional RR 1 for brute force.', { training: [['Hacking', 'Brute Force']] }]
+    ['MCT 260', 12, 'Firewall 3, Attack 2. RR 1 on Cracking and an additional RR 1 for brute force.', { training: [['Cracking', 'Brute Force']] }]
   ], { replaces: ['Cyberdeck'] }),
   ...coreAmps('Cyberdeck', 'p. 107', [
-    ['MCT 360', 12, 'Firewall 3, Attack 3. RR 1 on Cracking. Biofeedback program.', { training: [['Hacking']] }]
+    ['MCT 360', 12, 'Firewall 3, Attack 3. RR 1 on Cracking. Biofeedback program.', { training: [['Cracking']] }]
   ], { replaces: ['Cyberdeck'] }),
   ...coreAmps('Cyberdeck', 'p. 210', [
-    ['MCT 360', 11, 'Firewall 3, Attack 3. RR 1 on Cracking.', { training: [['Hacking']] }],
-    ['Renraku Kitsune', 14, 'Firewall 4, Attack 4. Biofeedback Filter and RR 1 on Cracking.', { training: [['Hacking']] }],
-    ['Shiawase Cyber-6', 20, 'Firewall 5, Attack 4. Biofeedback and Biofeedback Filter. RR 1 on Cracking, plus RR 1 for brute force and backdoor.', { training: [['Hacking', 'Brute Force', 'Backdoor']] }],
-    ['Fairlight Excalibur', 30, 'Firewall 5, Attack 5 and one additional light wound box. Biofeedback and Biofeedback Filter. RR 1 on Cracking, plus RR 2 for brute force and backdoor and RR 1 for cybercombat.', { training: [['Hacking', 'Brute Force', 'Backdoor', 'Cybercombat']] }],
+    ['MCT 360', 11, 'Firewall 3, Attack 3. RR 1 on Cracking.', { training: [['Cracking']] }],
+    ['Renraku Kitsune', 14, 'Firewall 4, Attack 4. Biofeedback Filter and RR 1 on Cracking.', { training: [['Cracking']] }],
+    ['Shiawase Cyber-6', 20, 'Firewall 5, Attack 4. Biofeedback and Biofeedback Filter. RR 1 on Cracking, plus RR 1 for brute force and backdoor.', { training: [['Cracking', 'Brute Force', 'Backdoor']] }],
+    ['Fairlight Excalibur', 30, 'Firewall 5, Attack 5 and one additional light wound box. Biofeedback and Biofeedback Filter. RR 1 on Cracking, plus RR 2 for brute force and backdoor and RR 1 for cybercombat.', { training: [['Cracking', 'Brute Force', 'Backdoor', 'Cybercombat']] }],
     ['Erika MCD-6', 3, 'Cyberdeck. Firewall 2, Attack 1.'],
-    ['Spinrad Falcon', 6, 'Cyberdeck. Firewall 2, Attack 2. RR 1 on Cracking (brute force) Tests.', { training: [['Hacking', 'Brute Force']] }]
+    ['Spinrad Falcon', 6, 'Cyberdeck. Firewall 2, Attack 2. RR 1 on Cracking (brute force) Tests.', { training: [['Cracking', 'Brute Force']] }]
   ], { replaces: ['Cyberdeck'] }),
   ...coreAmps('Cyberware', 'p. 83', [
-    ['Smartlink', 6, 'Cyberware. RR 1 on Ranged Weapons Tests.', { essenceLoss: 1, training: [['Firearms']] }]
+    ['Smartlink', 6, 'Cyberware. RR 1 on Ranged Weapons Tests.', { essenceLoss: 1, training: [['Ranged Weapons']] }]
   ]),
   ...coreAmps('Cyberware', 'p. 155', [
     ['MCT Decker-Pro Cyberjack', 7, 'DNI and cold- or hot-sim VR. In VR gain +1 Edge per action scene, +1 action per narration and unlimited extra actions.'],
@@ -169,9 +152,9 @@ const AMP_PROFILES = {
     ['L’Oréal Fashion Top Cybernetic Eyes', 2, 'Visual interface, camera and customizable iris color.'],
     ['Universal Omnitech ProView Cybernetic Eyes', 4, 'Visual interface, camera and low-light vision. RR 1 on physical Perception.', { training: [['Perception', 'Physical']] }],
     ['Universal Omnitech AbsoluteView Cybernetic Eyes', 6, 'Visual interface, camera and thermographic vision. RR 2 on physical Perception.', { training: [['Perception', 'Physical']] }],
-    ['Ares SharpShooter Cybernetic Eyes', 9, 'Visual interface, camera and zoom. RR 1 on Ranged Weapons and an additional RR 1 for rifles.', { training: [['Firearms', 'Rifles']] }],
+    ['Ares SharpShooter Cybernetic Eyes', 9, 'Visual interface, camera and zoom. RR 1 on Ranged Weapons and an additional RR 1 for rifles.', { training: [['Ranged Weapons', 'Rifles']] }],
     ['Evo EyeDrone Cybernetic Eyes', 5, 'Visual interface and camera. RR 1 on physical Perception. Ocular microdrone with Pilot 6, Body 0, Handling 10, Speed 0, Armor 0 and Advantage on physical Stealth. No weapon mount.', { training: [['Perception', 'Physical'], ['Stealth', 'Physical Sneaking']] }],
-    ['Ares ProShooter Cybernetic Eyes', 5, 'Visual interface, camera and RR 2 on Ranged Weapons (pistols) Tests.', { training: [['Firearms', 'Pistols']] }]
+    ['Ares ProShooter Cybernetic Eyes', 5, 'Visual interface, camera and RR 2 on Ranged Weapons (pistols) Tests.', { training: [['Ranged Weapons', 'Pistols']] }]
   ], { essenceLoss: 1 }),
   ...coreAmps('Cyberware', 'p. 157', [
     ['Standard Cybernetic Ears', 1, 'Auditory interface and microphone. Choose appearance.'],
@@ -236,8 +219,8 @@ const AMP_PROFILES = {
     ['Counterspelling Focus', 4, 'RR 2 on Sorcery (counterspelling).', { training: [['Sorcery', 'Counterspelling']] }],
     ['Sustaining Focus', 2, 'Sustain one additional spell without penalty.', { training: [['Sorcery']] }],
     ['Conjuring Focus', 5, 'RR 1 on Conjuring.', { training: [['Conjuring']] }],
-    ['Air Focus, Minor', 2, 'RR 1 on Conjuring (spirits of air).', { training: [['Conjuring', 'Air Spirits']] }],
-    ['Fire Focus, Major', 6, 'RR 3 on Conjuring (spirits of fire).', { training: [['Conjuring', 'Fire Spirits']] }],
+    ['Air Focus, Minor', 2, 'RR 1 on Conjuring (spirits of air).', { training: [['Conjuring', 'Spirits of Air']] }],
+    ['Fire Focus, Major', 6, 'RR 3 on Conjuring (spirits of fire).', { training: [['Conjuring', 'Spirits of Fire']] }],
     ['Banishing Focus', 4, 'RR 2 on Conjuring (banishing).', { training: [['Conjuring', 'Banishing']] }],
     ['Weapon Focus (Knife)', 1, 'Close range. DV Strength +1 in the physical realm or Charisma +1 in astral projection. Bypasses immunity to physical weapons.', { weaponSkill: 'Close Combat' }],
     ['Weapon Focus (Sword)', 5, 'Close range. DV Strength +2 in the physical realm or Charisma +2 in astral projection. RR 2 on Close Combat (blades). Bypasses immunity to physical weapons.', { weaponSkill: 'Close Combat', training: [['Close Combat', 'Blades']] }],
@@ -257,15 +240,15 @@ const AMP_PROFILES = {
     ['Jet Setter', 1, '+1 social armor when using the extended social tests option. Rating assumes this is the first quality.']
   ]),
   ...coreAmps('Quality', 'p. 174', [
-    ['Bear Mentor Spirit', 4, 'Choose two for RR 1: Survival (first aid), Close Combat (unarmed), or Sorcery (health spells). Disposition: Rage.', { trainingChoices: [['Survival', 'First Aid'], ['Close Combat', 'Unarmed Combat'], ['Sorcery', 'Health Spells']], chooseTraining: 2 }],
+    ['Bear Mentor Spirit', 4, 'Choose two for RR 1: Survival (first aid), Close Combat (unarmed), or Sorcery (health spells). Disposition: Rage.', { trainingChoices: [['Survival', 'First Aid'], ['Close Combat', 'Unarmed'], ['Sorcery', 'Health Spells']], chooseTraining: 2 }],
     ['Cat Mentor Spirit', 4, 'Choose two for RR 1: Athletics (parkour), Stealth (physical sneaking), or Sorcery (illusion spells). Disposition: Cruel.', { trainingChoices: [['Athletics', 'Parkour'], ['Stealth', 'Physical Sneaking'], ['Sorcery', 'Illusion Spells']], chooseTraining: 2 }],
     ['Coyote Mentor Spirit', 4, 'Choose two for RR 1: Influence (impersonation or etiquette) or Sorcery (manipulation spells). Disposition: Mischievous.', { trainingChoices: [['Influence', 'Impersonation', 'Etiquette'], ['Sorcery', 'Manipulation Spells']], chooseTraining: 2 }]
   ]),
   ...coreAmps('Quality', 'p. 175', [
     ['Dog Mentor Spirit', 4, 'Choose two for RR 1: Perception (physical), Survival (navigation), or Sorcery (detection spells). Disposition: Loyal.', { trainingChoices: [['Perception', 'Physical'], ['Survival', 'Navigation'], ['Sorcery', 'Detection Spells']], chooseTraining: 2 }],
     ['Dragonslayer Mentor Spirit', 4, 'Choose two for RR 1: Influence (intimidation), a Close Combat specialization, or Sorcery (combat spells). Disposition: Honor.', { trainingChoices: [['Influence', 'Intimidation'], trainingForSpecialization('Close Combat'), ['Sorcery', 'Combat Spells']], chooseTraining: 2 }],
-    ['Thunderbird Mentor Spirit', 4, 'Choose two for RR 1: Influence (intimidation), Close Combat (unarmed), or Conjuring (spirits of air). Disposition: Uptight.', { trainingChoices: [['Influence', 'Intimidation'], ['Close Combat', 'Unarmed Combat'], ['Conjuring', 'Air Spirits']], chooseTraining: 2 }],
-    ['Wolf Mentor Spirit', 4, 'Choose two for RR 1: Survival (navigation), Close Combat (unarmed or blades), or Sorcery (combat spells). Disposition: Fierce.', { trainingChoices: [['Survival', 'Navigation'], ['Close Combat', 'Unarmed Combat', 'Blades'], ['Sorcery', 'Combat Spells']], chooseTraining: 2 }],
+    ['Thunderbird Mentor Spirit', 4, 'Choose two for RR 1: Influence (intimidation), Close Combat (unarmed), or Conjuring (spirits of air). Disposition: Uptight.', { trainingChoices: [['Influence', 'Intimidation'], ['Close Combat', 'Unarmed'], ['Conjuring', 'Spirits of Air']], chooseTraining: 2 }],
+    ['Wolf Mentor Spirit', 4, 'Choose two for RR 1: Survival (navigation), Close Combat (unarmed or blades), or Sorcery (combat spells). Disposition: Fierce.', { trainingChoices: [['Survival', 'Navigation'], ['Close Combat', 'Unarmed', 'Blades'], ['Sorcery', 'Combat Spells']], chooseTraining: 2 }],
     ['Raccoon Mentor Spirit', 4, 'RR 1 on Stealth (palming) and Sorcery (manipulation spells) Tests. Disposition: Curious.', { training: [['Stealth', 'Palming'], ['Sorcery', 'Manipulation Spells']] }]
   ]),
   ...coreAmps('Rigger Command Console', 'p. 158', [
@@ -281,24 +264,24 @@ const AMP_PROFILES = {
   ]),
   ...coreAmps('Weapon Amp', 'p. 158', [
     ['Synthetic Cyberarm with Cyberspur', 4, 'Forearm blade. RR 1 on Close Combat (blades) Tests.', { essenceLoss: 1, training: [['Close Combat', 'Blades']] }],
-    ['Synthetic Cyberarm with Heavy Pistol', 4, 'Forearm pistol. RR 1 on Ranged Weapons (pistols).', { training: [['Firearms', 'Pistols']] }],
+    ['Synthetic Cyberarm with Heavy Pistol', 4, 'Forearm pistol. RR 1 on Ranged Weapons (pistols).', { training: [['Ranged Weapons', 'Pistols']] }],
   ]),
   ...coreAmps('Weapon Amp', 'p. 144', [
     ['Monofilament Whip', 1, 'DV 7 at close range. Use at least six risk dice, up to the full pool.', { weaponSkill: 'Close Combat' }],
     ['Yamaha Pulsar', 2, 'Taser. DV 5. Range OK / OK / Dis. / —.'],
     ['Tiffani Needler', 2, 'Hold-out pistol. DV 3. Range OK / OK / Dis. / —. RR 1 on physical Stealth.', { training: [['Stealth', 'Physical Sneaking']] }],
     ['Shiawase Arms Puzzler', 4, 'Light pistol. DV 4. Range OK / OK / Dis. / —. RR 2 on physical Stealth.', { training: [['Stealth', 'Physical Sneaking']] }],
-    ['Ares Predator IV', 2, 'Heavy pistol. DV 5. Range OK / OK / Dis. / —. RR 1 on Ranged Weapons (pistols).', { training: [['Firearms', 'Pistols']] }],
-    ['Ares Predator V', 3, 'Heavy pistol. DV 5. Range OK / OK / Dis. / —. RR 1 on Ranged Weapons (pistols). Burst fire.', { training: [['Firearms', 'Pistols']] }],
-    ['Ares Predator VI', 5, 'Heavy pistol. Range OK / OK / Dis. / —. RR 1 on Ranged Weapons (pistols). Burst fire. Select DV 5 gel or DV 6 explosive ammunition.', { training: [['Firearms', 'Pistols']] }],
+    ['Ares Predator IV', 2, 'Heavy pistol. DV 5. Range OK / OK / Dis. / —. RR 1 on Ranged Weapons (pistols).', { training: [['Ranged Weapons', 'Pistols']] }],
+    ['Ares Predator V', 3, 'Heavy pistol. DV 5. Range OK / OK / Dis. / —. RR 1 on Ranged Weapons (pistols). Burst fire.', { training: [['Ranged Weapons', 'Pistols']] }],
+    ['Ares Predator VI', 5, 'Heavy pistol. Range OK / OK / Dis. / —. RR 1 on Ranged Weapons (pistols). Burst fire. Select DV 5 gel or DV 6 explosive ammunition.', { training: [['Ranged Weapons', 'Pistols']] }],
     ['Ruger Super Warhawk', 1, 'Heavy pistol. DV 6. Range OK / OK / Dis. / —.'],
-    ['Ingram Smartgun', 3, 'SMG. DV 5. Range Dis. / OK / OK / —. RR 1 on Ranged Weapons (SMGs). Silencer.', { training: [['Firearms', 'SMGs']] }],
-    ['Ares Alpha Mk II', 5, 'Rifle DV 7, range Dis. / OK / OK / Dis. Underbarrel launcher DV 7, range — / Dis. / OK / OK. RR 1 with both.', { training: [['Firearms', 'Rifles'], ['Heavy Weapons', 'Grenade Launchers']] }],
+    ['Ingram Smartgun', 3, 'SMG. DV 5. Range Dis. / OK / OK / —. RR 1 on Ranged Weapons (submachine guns). Silencer.', { training: [['Ranged Weapons', 'Submachine Guns']] }],
+    ['Ares Alpha Mk II', 5, 'Rifle DV 7, range Dis. / OK / OK / Dis. Underbarrel launcher DV 7, range — / Dis. / OK / OK. RR 1 with both.', { training: [['Ranged Weapons', 'Rifles', 'Grenade Launchers']] }],
     ['Barrett Model 122', 2, 'Sniper rifle. DV 12. Range — / Dis. / Dis. / OK.'],
-    ['Ranger Arms SM-6', 4, 'Sniper rifle. DV 10. Range — / Dis. / Dis. / OK. RR 1 on Ranged Weapons (sniper rifles). Silenced and easy to disassemble.', { training: [['Firearms', 'Sniper Rifles']] }]
-  ], { weaponSkill: 'Firearms' }),
+    ['Ranger Arms SM-6', 4, 'Sniper rifle. DV 10. Range — / Dis. / Dis. / OK. RR 1 on Ranged Weapons (rifles). Silenced and easy to disassemble.', { training: [['Ranged Weapons', 'Rifles']] }]
+  ], { weaponSkill: 'Ranged Weapons' }),
   ...coreAmps('Awakened', TECHNOMANCER_SOURCE, [
-    [EMERGED_AMP, 7, 'Living persona with AR and hot-sim VR. Firewall uses Willpower and Attack uses Charisma. Hacking represents Cracking. Tasking threads complex forms and compiles sprites. Matrix damage becomes biofeedback. Tasking can cause fading.', { unlocks: ['Tasking'], training: [['Hacking'], ['Tasking']] }]
+    [EMERGED_AMP, 7, 'Living persona with AR and hot-sim VR. Firewall uses Willpower and Attack uses Charisma. Use Cracking with the living persona. Tasking threads complex forms and compiles sprites. Matrix damage becomes biofeedback. Tasking can cause fading.', { unlocks: [TASKING], training: [['Cracking'], [TASKING]] }]
   ]),
   ...Object.fromEntries(CATALOG.vehicle.map(({ name, rating, source, effect }) =>
     [name, {
@@ -313,28 +296,29 @@ const AMP_PROFILES = {
 
 const CONCEPTS = {
   Muscle: [
-    { name: 'Bodyguard', attribute: 'Strength', skills: ['Close Combat', 'Firearms', 'Perception'],
+    { name: 'Bodyguard', attribute: 'Strength', skills: ['Close Combat', 'Ranged Weapons', 'Perception'],
       amps: ['Dermal Plating', 'Reaction Enhancer'], weight: 2, source: 'p. 250' },
     { name: 'Combat Adept', attribute: 'Agility', skills: ['Close Combat', 'Athletics', 'Perception'],
       amps: ['Awakened (Adept)', 'Killing Hands'], weight: 2, source: 'pp. 108–109' },
-    { name: 'Mercenary', attribute: 'Agility', skills: ['Firearms', 'Heavy Weapons', 'Survival'],
+    { name: 'Mercenary', attribute: 'Agility', skills: ['Ranged Weapons', 'Survival'],
+      specializations: { 'Ranged Weapons': ['Heavy Weapons'] },
       amps: ['Smartlink', 'Reaction Enhancer'], weight: 2, source: 'p. 252' },
     { name: 'Razorgirl', attribute: 'Agility', skills: ['Close Combat', 'Stealth', 'Athletics'],
       amps: ['Ares Wired Reflexes', 'Synthetic Cyberarm with Cyberspur'], weight: 3, source: 'pp. 90–91' },
-    { name: 'Sprawl Ganger', attribute: 'Agility', skills: ['Close Combat', 'Firearms', 'Piloting'],
-      specializations: { Piloting: ['Motorcycles'] },
+    { name: 'Sprawl Ganger', attribute: 'Agility', skills: ['Close Combat', 'Ranged Weapons', 'Piloting'],
+      specializations: { Piloting: ['Bikes'] },
       amps: ['Ganger'], vehicleGroup: 'Motorcycle', weight: 2, source: 'pp. 164, 238, 244' },
-    { name: 'Street Samurai', attribute: 'Agility', skills: ['Close Combat', 'Firearms', 'Athletics'],
+    { name: 'Street Samurai', attribute: 'Agility', skills: ['Close Combat', 'Ranged Weapons', 'Athletics'],
       amps: ['Ares Wired Reflexes', 'Smartlink'], weight: 3, source: 'pp. 90–91' },
-    { name: 'Tank', attribute: 'Strength', skills: ['Close Combat', 'Firearms', 'Survival'],
+    { name: 'Tank', attribute: 'Strength', skills: ['Close Combat', 'Ranged Weapons', 'Survival'],
       amps: ['Dermal Plating', 'Platelet Factories'], weight: 2, source: 'pp. 104–105 (Drakk)' },
-    { name: 'Weapons Specialist', attribute: 'Agility', skills: ['Firearms', 'Heavy Weapons', 'Engineering'],
-      specializations: { Engineering: ['Armorer'], Firearms: ['Rifles'] }, equipment: ['Tool kit'],
+    { name: 'Weapons Specialist', attribute: 'Agility', skills: ['Ranged Weapons', 'Engineering'],
+      specializations: { Engineering: ['Mechanical B&R'], 'Ranged Weapons': ['Rifles', 'Heavy Weapons'] }, equipment: ['Tool kit'],
       amps: ['Reflex Recorder (Rifles)', 'Gunsmith'], weight: 2, source: 'pp. 159, 164 (Reflex Recorder and Gunsmith contact)' }
   ],
   Awakened: [
-    { name: 'Beast Summoner', attribute: 'Charisma', skills: ['Conjuring', 'Survival', 'Tracking'],
-      skillAttributes: { Conjuring: 'Charisma' }, specializations: { Conjuring: ['Spirits of Beasts'] }, spellCount: 0,
+    { name: 'Beast Summoner', attribute: 'Charisma', skills: ['Conjuring', 'Survival', 'Perception'],
+      skillAttributes: { Conjuring: 'Charisma' }, specializations: { Conjuring: ['Spirits of Beasts'], Survival: ['Animals'] }, spellCount: 0,
       amps: ['Awakened (Conjurer)', 'Beast Focus'], weight: 2, source: 'pp. 170, 185, 189' },
     { name: 'Combat Mage', attribute: 'Willpower', skills: ['Sorcery', 'Perception', 'Athletics'],
       spellGroup: 'Combat',
@@ -348,25 +332,25 @@ const CONCEPTS = {
     { name: 'Street Shaman', attribute: 'Willpower', skills: ['Conjuring', 'Sorcery', 'Influence'],
       skillAttributes: { Conjuring: 'Charisma' }, spellGroup: 'Manipulation',
       amps: ['Awakened (Magician)', 'Raccoon Mentor Spirit'], weight: 4, source: 'pp. 92–93 (Trash)' },
-    { name: 'Technomancer', attribute: 'Logic', skills: ['Tasking', 'Hacking', 'Electronics'],
-      specializations: { Tasking: ['Complex Forms', 'Compilation'] },
+    { name: 'Technomancer', attribute: 'Logic', skills: [TASKING, 'Cracking', 'Electronics'],
+      specializations: { [TASKING]: ['Complex Forms', 'Compilation'] },
       amps: [EMERGED_AMP, 'Data Haven'], weight: 2, source: TECHNOMANCER_SOURCE }
   ],
   Tech: [
-    { name: 'Combat Decker', attribute: 'Logic', skills: ['Hacking', 'Firearms', 'Athletics'],
+    { name: 'Combat Decker', attribute: 'Logic', skills: ['Cracking', 'Ranged Weapons', 'Athletics'],
       amps: ['Datajack', 'Ares ProShooter Cybernetic Eyes'], startingKit: 'Cyberdeck', weight: 2, source: 'pp. 106–107' },
-    { name: 'Decker', attribute: 'Logic', skills: ['Hacking', 'Electronics', 'Perception'],
+    { name: 'Decker', attribute: 'Logic', skills: ['Cracking', 'Electronics', 'Perception'],
       amps: ['Unlocked Datajack', 'Data Haven'], startingKit: 'Cyberdeck', weight: 4, source: 'pp. 94–95' },
     { name: 'Drone Specialist', attribute: 'Logic', skills: ['Piloting', 'Engineering', 'Perception'],
       amps: ['Unlocked Datajack', 'Cyberspace Design Quadrotor'], startingKit: 'Rigger', weight: 2, source: 'pp. 100–101' },
     { name: 'Rigger', attribute: 'Logic', skills: ['Engineering', 'Piloting', 'Electronics'],
       amps: ['Mechanic'], startingKit: 'Rigger', vehicleGroup: 'Any', randomDrone: true, weight: 4, source: 'pp. 96–97' },
-    { name: 'Security Expert', attribute: 'Logic', skills: ['Electronics', 'Engineering', 'Firearms'],
+    { name: 'Security Expert', attribute: 'Logic', skills: ['Electronics', 'Engineering', 'Ranged Weapons'],
       amps: ['Datajack', 'GM-Nissan Doberman'], startingKit: 'Rigger', weight: 2, source: 'p. 253' },
   ],
   Specialist: [
-    { name: 'Bounty Hunter', attribute: 'Logic', skills: ['Tracking', 'Perception', 'Firearms'],
-      specializations: { Tracking: ['People'] },
+    { name: 'Bounty Hunter', attribute: 'Logic', skills: ['Perception', 'Ranged Weapons'],
+      specializations: { Perception: ['Physical'] },
       amps: ['Evo Night Hawk 500 Binoculars', 'Sensor Tags'], vehicleGroup: 'Car', weight: 2, source: 'p. 136' },
     { name: 'Burglar', attribute: 'Agility', skills: ['Stealth', 'Electronics', 'Athletics'],
       amps: ['Infiltration Kit', 'Climbing Gear'], weight: 2, source: 'p. 136' },
@@ -377,13 +361,13 @@ const CONCEPTS = {
       amps: ['Nanopaste Makeup', 'Infiltration Kit'], weight: 2, source: 'pp. 136, 139' },
     { name: 'Infiltrator', attribute: 'Agility', skills: ['Stealth', 'Athletics', 'Electronics'],
       amps: ['Climbing Gear', 'Laser Microphone'], weight: 3, source: 'pp. 102–103' },
-    { name: 'Investigator', attribute: 'Logic', skills: ['Perception', 'Tracking', 'Influence'],
-      amps: ['Evo Night Hawk 500 Binoculars', 'Undercover Cop'], weight: 2, source: 'p. 254' },
-    { name: 'Scout', attribute: 'Agility', skills: ['Tracking', 'Survival', 'Perception'],
-      amps: ['Thermal Binoculars', 'Sensor Tags', 'Microdrone'], weight: 2, source: null },
+    { name: 'Investigator', attribute: 'Logic', skills: ['Perception', 'Influence'],
+      specializations: { Perception: ['Physical'] }, amps: ['Evo Night Hawk 500 Binoculars', 'Undercover Cop'], weight: 2, source: 'p. 254' },
+    { name: 'Scout', attribute: 'Agility', skills: ['Survival', 'Perception'],
+      specializations: { Survival: ['Wilderness'], Perception: ['Physical'] }, amps: ['Thermal Binoculars', 'Sensor Tags', 'Microdrone'], weight: 2, source: null },
     { name: 'Smuggler', attribute: 'Agility', skills: ['Piloting', 'Stealth', 'Network'],
       amps: ['Smuggler'], vehicleGroup: 'Car', weight: 2, source: 'p. 255' },
-    { name: 'Street Doc', attribute: 'Logic', skills: ['Survival', 'Biotech', 'Perception'],
+    { name: 'Street Doc', attribute: 'Logic', skills: ['Survival', 'Perception'],
       skillAttributes: { Survival: 'Logic' }, specializations: { Survival: ['First Aid'] }, equipment: ['Medkit'],
       amps: ['DocWagon Pro+ Autonomous Medkit', 'Street Doc'], weight: 3, source: 'p. 250' },
     { name: 'Wheeler', attribute: 'Agility', skills: ['Piloting', 'Perception', 'Survival'],
@@ -391,18 +375,18 @@ const CONCEPTS = {
       amps: ['Mechanic'], vehicleGroup: 'Car', weight: 2, source: 'p. 238 (Vehicle selection)' }
   ],
   Influence: [
-    { name: 'Arms Dealer', attribute: 'Charisma', skills: ['Influence', 'Firearms', 'Network'],
+    { name: 'Arms Dealer', attribute: 'Charisma', skills: ['Influence', 'Ranged Weapons', 'Network'],
       amps: ['Gunsmith', 'Fixer'], weight: 2, source: 'p. 164' },
     { name: 'Con Artist', attribute: 'Charisma', skills: ['Influence', 'Stealth', 'Network'],
       amps: ['Makeup Kit', 'Well-Stocked Closet'], weight: 2, source: 'p. 139' },
     { name: 'Face', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
       amps: ['Tailored Pheromones', 'Well-Stocked Closet'], weight: 4, source: 'pp. 88–89' },
-    { name: 'Fixer', attribute: 'Charisma', skills: ['Network', 'Influence', 'Intimidation'],
-      amps: ['Fixer', 'Bar Owner'], weight: 2, source: 'p. 164' },
-    { name: 'Gang Leader', attribute: 'Charisma', skills: ['Intimidation', 'Network', 'Firearms'],
-      amps: ['Ganger', 'Bar Owner'], weight: 2, source: 'p. 244' },
+    { name: 'Fixer', attribute: 'Charisma', skills: ['Network', 'Influence'],
+      specializations: { Influence: ['Intimidation'] }, amps: ['Fixer', 'Bar Owner'], weight: 2, source: 'p. 164' },
+    { name: 'Gang Leader', attribute: 'Charisma', skills: ['Influence', 'Network', 'Ranged Weapons'],
+      specializations: { Influence: ['Intimidation'] }, amps: ['Ganger', 'Bar Owner'], weight: 2, source: 'p. 244' },
     { name: 'Rocker', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
-      specializations: { Influence: ['Performance'], Network: ['Music Scene'] },
+      specializations: { Network: ['Media'] },
       amps: ['Bar Owner', 'Well-Stocked Closet'], weight: 2, source: 'pp. 139, 164' }
   ]
 };

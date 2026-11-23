@@ -2,7 +2,6 @@ import {
   ATTRIBUTES,
   LIMITS,
   LEVELS,
-  SKILLS,
   CONCEPTS,
   AMP_PROFILES,
   EMERGED_AMP,
@@ -16,7 +15,7 @@ import {
   DISPOSITIONS,
   STREETWISE_CUES
 } from './personality.js';
-import { SPECIALIZATIONS } from './specializations.js';
+import { linkedAttributes, SKILLS, skillRule, specializationCode, specializationOptions, TASKING } from './specializations.js';
 import { KNOWLEDGE_SKILLS } from './knowledge.js';
 import { makeAmp, startingKitKind, trainGeneratedRunner } from './generation.js';
 import {
@@ -25,9 +24,11 @@ import {
   blank,
   calc,
   equipArmorAmp,
-  mainArmor,
   priceSkill,
-  priceAmp
+  priceAmp,
+  woundArmor,
+  woundThresholds,
+  ALTERNATE_WOUND_PRESETS
 } from './model.js';
 import './components/field.js';
 import './components/panel.js';
@@ -36,13 +37,22 @@ import './components/print-sheet.js';
 import './components/budget.js';
 import './components/portrait-editor.js';
 const STORE = 'anarchy2.characters.v1';
+const skillSheetRowLimit = 11;
+const infoIcon = '<span aria-hidden="true">ⓘ</span>';
 const ampReviewNote = source => source
   ? `Review Amp components and rating, ${source}.`
   : `Review the general Shadow Amp rules, ${SHADOW_AMP_RULES_SOURCE}.`;
+const gearCatalog = {};
+for (const [type, items] of Object.entries(CATALOG)) {
+  for (const item of items) {
+    if (AMP_PROFILES[item.name]?.group === 'Weapon Amp') continue;
+    const category = type === 'equipment' ? item.group : type[0].toUpperCase() + type.slice(1);
+    const entry = type === 'vehicle' ? { ...item, type: 'amp', cost: priceAmp(item) } : { ...item, type };
+    (gearCatalog[category] ??= []).push({ ...entry, category });
+  }
+}
 const catalogs = {
-  gear: Object.entries(CATALOG).filter(([type]) => type !== 'vehicle').flatMap(([type, items]) =>
-    items.filter(item => AMP_PROFILES[item.name]?.group !== 'Weapon Amp')
-      .map(item => ({ ...item, type, category: type[0].toUpperCase() + type.slice(1) }))),
+  gear: Object.values(gearCatalog).flat(),
   magic: Object.entries(AMP_PROFILES).map(([name, profile]) => ({
     ...profile,
     name,
@@ -59,13 +69,40 @@ const conceptsForRole = role => {
   return Object.hasOwn(CONCEPTS, role) ? CONCEPTS[role] : [];
 };
 const restoreCharacter = saved => {
-  const s = { ...blank(), ...saved };
+  const defaults = blank();
+  const s = { ...defaults, ...saved, woundSettings: { ...defaults.woundSettings, ...saved.woundSettings } };
+  const wounds = s.woundSettings;
+  const { alternateFirewall, alternateBody } = wounds;
+  if (wounds.alternateType === 'Damage') wounds.alternateType = 'Vehicle';
+  if (wounds.alternateAttribute === '---' && wounds.alternateType === 'Matrix' && alternateFirewall != null) {
+    wounds.alternateArmorIncrease = alternateFirewall;
+  }
+  if (wounds.alternateType === 'Vehicle' && !Object.hasOwn(saved.woundSettings ?? {}, 'vehicleBody')) {
+    wounds.vehicleBody = alternateBody ?? null;
+    if (alternateBody == null && wounds.alternateAttribute === '---') {
+      wounds.vehicleBody = wounds.alternateArmorIncrease;
+      wounds.alternateArmorIncrease = null;
+    }
+  }
+  delete wounds.alternateFirewall;
+  delete wounds.alternateBody;
+  if (!Object.hasOwn(ALTERNATE_WOUND_PRESETS, wounds.alternateType)) {
+    wounds.alternateType = defaults.woundSettings.alternateType;
+    wounds.alternateAttribute = defaults.woundSettings.alternateAttribute;
+  }
+  if (!ATTRIBUTES.includes(wounds.alternateAttribute)) {
+    wounds.alternateAttribute = ALTERNATE_WOUND_PRESETS[wounds.alternateType].attribute;
+  }
   s.role = legacyRoles.get(s.role) ?? s.role;
   if (s.role !== 'Any' && !Object.hasOwn(CONCEPTS, s.role)) s.role = 'Any';
   if (!conceptsForRole(s.role).some(c => c.name === s.concept)) s.concept = 'Random';
   s.amps = s.amps.map(amp => amp.name === 'Emerged' && amp.source === AMP_PROFILES[EMERGED_AMP].source
     ? { ...amp, name: EMERGED_AMP }
     : amp);
+  s.items = s.items.map(item => {
+    const type = normalizeName(item.type);
+    return Object.hasOwn(CATALOG, type) ? { ...item, type } : item;
+  });
   return s;
 };
 const normalizeName = value => String(value ?? '').trim().toLocaleLowerCase();
@@ -92,7 +129,15 @@ const sortedItems = items => [...items].sort((a, b) => {
 const getSpecializations = skill => Array.isArray(skill.specializations) ?
   skill.specializations.map(v => String(v || '').trim()) :
   String(skill.specialization || '').split(',').map(v => v.trim()).filter(Boolean);
-const specializationLabel = skill => getSpecializations(skill).filter(Boolean).join(', ');
+const abbreviatedAttribute = attribute => String(attribute ?? '').slice(0, 3).toUpperCase();
+const specializationAttribute = (skill, value) => {
+  const attributes = linkedAttributes(skill);
+  const code = specializationCode(skill.name, value);
+  const allowed = code ? attributes.filter(attribute => code.split('/').includes(attribute[0])) : attributes;
+  const selected = skill.specializationAttributes?.[normalizeName(value)];
+  if (allowed.includes(selected)) return selected;
+  return allowed.includes(skill.attribute) ? skill.attribute : allowed[0];
+};
 const isFreeCommlink = name => /commlink/i.test(name);
 const gearPool = (type, used) => (CATALOG[type] || []).filter(v => !used.has(normalizeName(v.name)) && !(type ===
   'equipment' && isFreeCommlink(v.name)));
@@ -149,6 +194,7 @@ export class AnarchyBuilder extends HTMLElement {
     super();
     this.s = blank();
     this.tab = 'identity';
+    this.skillAttributesVisible = false;
     this.notice = '';
     this.catalogFilters = {
       gear: { search: '', category: '' },
@@ -355,9 +401,9 @@ export class AnarchyBuilder extends HTMLElement {
       name: v.name
     }));
     // Prefer concept-relevant weapons but never force Heavy pistol.
-    const firearmFocus = c.skills.includes('Firearms') || c.skills.includes('Heavy Weapons');
-    const weaponCount = !awakened && firearmFocus ? 2 : 1;
-    const chosenWeapons = pickUnique(firearmFocus ? ranged : melee, weaponCount);
+    const rangedFocus = c.skills.includes('Ranged Weapons');
+    const weaponCount = !awakened && rangedFocus ? 2 : 1;
+    const chosenWeapons = pickUnique(rangedFocus ? ranged : melee, weaponCount);
     if (!chosenWeapons.length) chosenWeapons.push(...pickUnique(gearPool('weapon', used), 1));
     chosenWeapons.forEach(v => addCatalog('weapon', v));
     const spells = gearPool('spell', used).filter(item => !c.spellGroup || item.group === c.spellGroup);
@@ -382,29 +428,40 @@ export class AnarchyBuilder extends HTMLElement {
   }
 
 
-  addSpecialization(i, value) {
+  addSpecialization(i, value, attribute) {
     const chosen = String(value || '').trim();
     if (!chosen) return;
-    const occupied = this.s.skills.flatMap(getSpecializations).some(v => normalizeName(v) === normalizeName(chosen));
-    if (occupied) return this.notify('Specialization already selected.');
     const row = this.s.skills[i];
-    row.specializations = [...getSpecializations(row).filter(Boolean), chosen];
+    const existing = getSpecializations(row).filter(Boolean);
+    if (existing.some(v => normalizeName(v) === normalizeName(chosen))) return this.notify('Specialization already selected.');
+    row.specializations = [...existing, chosen];
+    if (attribute) row.specializationAttributes = { ...row.specializationAttributes, [normalizeName(chosen)]: attribute };
     row.specialization = '';
     this.update();
   }
   removeSpecialization(i, index) {
     const row = this.s.skills[i];
-    row.specializations = getSpecializations(row).filter((_, j) => j !== index);
+    const specializations = getSpecializations(row);
+    row.specializations = specializations.filter((_, j) => j !== index);
+    if (row.specializationAttributes) delete row.specializationAttributes[normalizeName(specializations[index])];
     row.specialization = '';
     this.update();
   }
   specializationPicker(skill, index) {
-    const occupied = new Set(this.s.skills.flatMap(getSpecializations).map(normalizeName));
-    const options = (SPECIALIZATIONS[skill.name] || [])
-      .filter(value => !occupied.has(normalizeName(value)))
-      .sort((a, b) => a.localeCompare(b))
-      .map(value => this.specializationOptionHTML(value))
+    const occupied = new Set(getSpecializations(skill).map(normalizeName));
+    const options = specializationOptions(skill.name)
+      .filter(([value]) => !occupied.has(normalizeName(value)))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .flatMap(([value, code]) => {
+        const codes = code.split('/');
+        return codes.map(initial => {
+          const attribute = codes.length > 1 ? ATTRIBUTES.find(name => name[0] === initial) : '';
+          return `<option value="${this.esc(value)}" data-attribute="${attribute}">${this.esc(value)} (+${initial})</option>`;
+        });
+      })
       .join('');
+    const attributes = linkedAttributes(skill);
+    const preferred = specializationAttribute(skill, '');
 
     return [
       '<div class="specialization-picker">',
@@ -415,37 +472,43 @@ export class AnarchyBuilder extends HTMLElement {
             '<option value="__custom__">Custom…</option>',
           '</select>',
         '</label>',
-        `<input class="specialization-custom" data-custom-for="${index}" placeholder="Custom specialization" aria-label="Custom specialization" hidden>`,
-        `<button type="button" class="small" data-confirm-custom="${index}" hidden>Add</button>`,
+        `<div class="custom-specialization" popover="manual" role="dialog" aria-labelledby="custom-title-${index}">`,
+          `<h4 id="custom-title-${index}">Custom specialization <span>${this.esc(skill.name)}</span></h4>`,
+          '<div class="custom-specialization-fields">',
+            `<label class="field"><span>Name</span><input data-custom-for="${index}" required></label>`,
+            '<label class="field"><span>Attribute</span><select data-custom-attribute>',
+              ...attributes.map(attribute => `<option${attribute === preferred ? ' selected' : ''}>${this.esc(attribute)}</option>`),
+            '</select></label>',
+          '</div>',
+          '<div class="custom-specialization-actions">',
+            '<button type="button" data-close-custom>Cancel</button>',
+            '<button type="button" class="primary" data-confirm-custom disabled>Add</button>',
+          '</div>',
+        '</div>',
       '</div>'
     ].join('');
   }
 
-  specializationOptionHTML(value) {
-    const label = this.esc(value);
-    return `<option value="${label}">${label}</option>`;
-  }
-
   specializationBadges(skill, index) {
-    const badges = getSpecializations(skill).filter(Boolean)
-      .map((value, badgeIndex) => this.specializationBadgeHTML(value, index, badgeIndex))
+    const badges = getSpecializations(skill)
+      .map((value, badgeIndex) => value ? this.specializationBadgeHTML(skill, value, index, badgeIndex) : '')
       .join('');
     return badges ? `<div class="specialization-badges">${badges}</div>` : '';
   }
 
-  specializationBadgeHTML(value, skillIndex, badgeIndex) {
+  specializationBadgeHTML(skill, value, skillIndex, badgeIndex) {
     const label = this.esc(value);
+    const code = abbreviatedAttribute(specializationAttribute(skill, value));
     return [
-      `<span class="specialization-badge">${label}`,
+      `<span class="specialization-badge">${label}${code ? ` <span class="specialization-attribute">${code}</span>` : ''}`,
         `<button type="button" aria-label="Remove ${label}" title="Remove specialization" data-remove-specialization="${skillIndex}:${badgeIndex}">×</button>`,
       '</span>'
     ].join('');
   }
 
-  field(label, path, type = 'text', options = null) {
+  field(label, path, type = 'text', options = null, value) {
     const bits = path.split('.');
-    const v = bits.length === 3 ? this.s[bits[0]][+bits[1]][bits[2]] : bits.length === 2 ? this.s[bits[0]][bits[1]] :
-      this.s[path];
+    const v = value ?? bits.reduce((record, key) => record[key], this.s);
     const optionAttribute = options ? this.fieldOptionsAttribute(options) : '';
     return `<runner-field label="${this.esc(label)}" path="${this.esc(path)}" value="${this.esc(v ?? '')}" kind="${type}" ${optionAttribute}></runner-field>`;
   }
@@ -460,11 +523,17 @@ export class AnarchyBuilder extends HTMLElement {
       '&quot;')
   }
 
-  section(title, content) {
-    return `<runner-panel heading="${this.esc(title)}">${content}</runner-panel>`;
+  section(title, content, attributes = '') {
+    return `<runner-panel heading="${this.esc(title)}"${attributes}>${content}</runner-panel>`;
   }
 
   render() {
+    const openTip = this.tab === 'skills' && this.querySelector('.custom-specialization:popover-open');
+    const draft = openTip && {
+      skill: openTip.closest('.skill-entry').querySelector('.skill-heading strong').textContent,
+      name: openTip.querySelector('[data-custom-for]').value,
+      attribute: openTip.querySelector('[data-custom-attribute]').value
+    };
     const budget = calc(this.s);
     const tabs = ['identity', 'attributes', 'skills', 'magic', 'gear', 'personality', 'print'];
     const names = Object.keys(this.saves).sort();
@@ -472,6 +541,18 @@ export class AnarchyBuilder extends HTMLElement {
 
     this.innerHTML = this.layoutHTML(names, tabs, budget, body);
     this.bind();
+    if (draft) {
+      const index = this.s.skills.findIndex(skill => skill.name === draft.skill);
+      const select = this.querySelector(`[data-add-specialization="${index}"]`);
+      if (select) {
+        const tip = select.closest('.specialization-picker').querySelector('.custom-specialization');
+        select.value = '__custom__';
+        tip.querySelector('[data-custom-for]').value = draft.name;
+        tip.querySelector('[data-custom-attribute]').value = draft.attribute;
+        tip.querySelector('[data-confirm-custom]').disabled = !draft.name.trim();
+        tip.showPopover({ source: select });
+      }
+    }
     if (this.tab === 'print') this.drawSheet();
   }
 
@@ -480,7 +561,10 @@ export class AnarchyBuilder extends HTMLElement {
       case 'identity':
         return this.section('Identity & generation', this.identityHTML()) + this.section('Portrait', this.portraitHTML());
       case 'attributes':
-        return this.section('Attributes', this.attributesHTML());
+        return this.section('Attributes', this.attributesHTML(), ' class="panel-with-control"') +
+          this.section('Skill attributes', this.skillAttributesHTML(),
+            ` id="skill-attributes-panel" class="panel-with-control"${this.skillAttributesVisible ? '' : ' hidden'}`) +
+          this.section('Wounds', this.woundsHTML());
       case 'skills':
         return this.section('Skills', this.skillsHTML());
       case 'magic':
@@ -543,6 +627,7 @@ export class AnarchyBuilder extends HTMLElement {
       this.field(`${attribute} (max ${limits[index]})`, `attributes.${attribute}`, 'number'));
 
     return [
+      `<button type="button" class="panel-control" id="skill-attributes-toggle" aria-label="Skill attributes" aria-controls="skill-attributes-panel" aria-expanded="${this.skillAttributesVisible}">${infoIcon}</button>`,
       '<div class="formgrid">',
         ...fields,
         this.field(`Edge (metatype baseline ${limits[5]})`, 'edge', 'number'),
@@ -550,6 +635,60 @@ export class AnarchyBuilder extends HTMLElement {
       '</div>',
       '<p class="muted">The final point at the metatype maximum costs 20,000¥. Metatype and level restrictions warn but never block edits.</p>'
     ].join('');
+  }
+
+  woundsHTML() {
+    const { main, alternate } = woundArmor(this.s);
+    const { alternateType, alternateAttribute, alternateArmorIncrease, vehicleBody } = this.s.woundSettings;
+    const attributes = alternateType === 'Mental' ? ATTRIBUTES : ['---', ...ATTRIBUTES];
+    const vehicle = alternateType === 'Vehicle';
+    const matrix = alternateType === 'Matrix';
+    const alternateFields = vehicle ? [
+      this.field('Body', 'woundSettings.vehicleBody', 'number', null, vehicleBody ?? this.s.attributes[alternateAttribute] ?? ''),
+      this.field('Armor', 'woundSettings.alternateArmorIncrease', 'number', null, alternateArmorIncrease ?? 0)
+    ] : [
+      this.field('Name', 'woundSettings.alternateArmorName', 'text', null, alternate.name),
+      matrix && alternateAttribute !== '---' ? '' :
+        this.field(matrix ? 'Firewall rating' : 'Armor increase', 'woundSettings.alternateArmorIncrease', 'number',
+          null, matrix ? alternateArmorIncrease ?? '' : alternate.protection)
+    ];
+    return [
+      '<div class="formgrid wound-settings">',
+        '<fieldset><legend>Main armor, physical</legend>',
+          this.field('Name', 'woundSettings.mainArmorName', 'text', null, main.name),
+          this.field('Armor increase', 'woundSettings.mainArmorIncrease', 'number', null, main.protection),
+        '</fieldset>',
+        '<fieldset><legend>Alternate wounds</legend>',
+          this.field('Type', 'woundSettings.alternateType', 'text', Object.keys(ALTERNATE_WOUND_PRESETS)),
+          this.field('Attribute', 'woundSettings.alternateAttribute', 'text', attributes),
+        '</fieldset>',
+        '<fieldset><legend>Alternate armor</legend>',
+          ...alternateFields,
+        '</fieldset>',
+      '</div>',
+      '<p class="muted">A selected attribute supplies Firewall for Matrix wounds or the default Body for Vehicle wounds.</p>'
+    ].join('');
+  }
+
+  skillAttributesHTML() {
+    const skills = new Map(this.s.skills.map(skill => [skill.name, skill]));
+    for (const name of this.availableSkills()) {
+      if (!skills.has(name)) skills.set(name, { name });
+    }
+    const entries = [...skills.values()].sort(alphabetical).map((skill, index) => {
+      const uses = Object.entries(skillRule(skill.name)?.uses ?? {});
+      const description = uses.length
+        ? uses.map(([attribute, text]) => `${attribute} — ${text}`).join('\n')
+        : `This saved skill uses ${skill.attribute || 'the linked attribute selected in the Skills tab'}.`;
+      return [
+        '<li>',
+          `<div><strong>${this.esc(skill.name)}</strong><span class="muted">${this.esc(linkedAttributes(skill).join(', '))}</span></div>`,
+          this.infoHTML(`About ${skill.name}`, description, `skill-info-${index}`),
+        '</li>'
+      ].join('');
+    });
+    return '<button type="button" class="panel-control" id="skill-attributes-close" aria-label="Hide skill attributes">×</button>' +
+      `<ul class="skill-attributes">${entries.join('')}</ul>`;
   }
 
   skillsHTML() {
@@ -560,7 +699,7 @@ export class AnarchyBuilder extends HTMLElement {
         '<button data-action="addknowledge">+ Knowledge skill</button>',
       '</div>',
       knowledge.length ? '<h3>Knowledge skills</h3>' : '',
-      knowledge.length ? `<div class="stack" data-reorder-list="knowledge">${knowledge.map((name, index) =>
+      knowledge.length ? `<div class="stack knowledge-grid" data-reorder-list="knowledge">${knowledge.map((name, index) =>
         this.knowledgeRowHTML(name, index)).join('')}</div>` : '',
       '<div class="stack" data-reorder-list="skills">',
         ...skills.map((skill, index) => this.skillRowHTML(skill, index)),
@@ -571,27 +710,45 @@ export class AnarchyBuilder extends HTMLElement {
 
   skillRowHTML(skill, index) {
     const used = new Set(this.s.skills.filter((_, i) => i !== index).map(other => normalizeName(other.name)));
-    const options = [skill.name, ...SKILLS.map(([name]) => name).filter(name => !used.has(normalizeName(name)))]
-      .filter((name, i, names) => names.findIndex(other => normalizeName(other) === normalizeName(name)) === i)
+    const options = [skill.name, ...this.availableSkills().filter(name =>
+      normalizeName(name) !== normalizeName(skill.name) && !used.has(normalizeName(name)))]
       .sort(alphabetical)
       .map(name => this.skillOptionHTML(name, name === skill.name))
       .join('');
     const cost = priceSkill(skill.rating) + getSpecializations(skill).filter(Boolean).length * 2500;
-    const dicePool = (+skill.rating || 0) + (+this.s.attributes[skill.attribute] || 0);
+    const pools = linkedAttributes(skill).map(attribute => {
+      const rating = (+skill.rating || 0) + (+this.s.attributes[attribute] || 0);
+      return `· ${this.esc(attribute).toLocaleLowerCase()} ${rating}`;
+    }).join('');
 
     return [
-      `<div class="entry skill-entry" data-entry-index="${index}"><div class="skill-main">`,
+      `<div class="entry skill-entry" data-entry-index="${index}">`,
+        '<div class="skill-main">',
         this.reorderHandleHTML('skills', index, skill.name || 'skill'),
-        `<label>Skill<select data-path="skills.${index}.name">${options} </select></label > `,
+        `<label class="field skill-name"><span>Skill ${pools}</span><select data-path="skills.${index}.name">${options}</select></label>`,
         this.field('Rating', `skills.${index}.rating`, 'number'),
-        '\n  ',
-        this.field('Linked attribute', `skills.${index}.attribute`, 'text', ATTRIBUTES),
-        '\n  ',
+        skillRule(skill.name) ? '' : this.field('Linked attribute', `skills.${index}.attribute`, 'text', ATTRIBUTES),
         this.specializationPicker(skill, index),
-        ` <span class = "cost"> ${money(cost)} · DP ${dicePool} </span>`,
-        `<button data-remove="skills.${index}" class="small">×</button > </div>`,
+        `<span class="cost">${money(cost)}</span>`,
+        `<button data-remove="skills.${index}" class="small" aria-label="Remove ${this.esc(skill.name)}">×</button>`,
+      '</div>',
         this.specializationBadges(skill, index),
-      '</div >\n  '
+      '</div>'
+    ].join('');
+  }
+
+  availableSkills() {
+    return this.s.amps.some(amp => amp.name === EMERGED_AMP) ? [...SKILLS, TASKING] : SKILLS;
+  }
+
+  infoHTML(label, description, id) {
+    return [
+      '<details class="info-control">',
+        `<summary aria-label="${this.esc(label)}" aria-describedby="${id}">`,
+          infoIcon,
+          `<span class="info-text" id="${id}">${this.esc(description)}</span>`,
+        '</summary>',
+      '</details>'
     ].join('');
   }
 
@@ -631,12 +788,7 @@ export class AnarchyBuilder extends HTMLElement {
         this.field('Rating', `${path}.rating`, 'number'),
         this.field('Effect / components', `${path}.notes`, 'textarea'),
         `<span class="cost">${money(priceAmp(amp))}</span>`,
-        '<details class="amp-source">',
-          `<summary aria-label="Source for ${this.esc(amp.name || 'Shadow Amp')}" aria-describedby="amp-source-${index}">`,
-            '<span aria-hidden="true">ⓘ</span>',
-            `<span class="amp-source-text" id="amp-source-${index}">${this.esc(source)}</span>`,
-          '</summary>',
-        '</details>',
+        this.infoHTML(`Source for ${amp.name || 'Shadow Amp'}`, source, `amp-source-${index}`),
         `<button data-remove="${path}" class="small">×</button>`,
       '</div>'
     ].join('');
@@ -655,7 +807,7 @@ export class AnarchyBuilder extends HTMLElement {
 
   catalogPanelHTML(tab, searchLabel) {
     const filters = this.catalogFilters[tab];
-    const categories = [...new Set(catalogs[tab].map(item => item.category))].sort(alphabetical);
+    const categories = (tab === 'gear' ? Object.keys(gearCatalog) : [...new Set(catalogs[tab].map(item => item.category))]).sort(alphabetical);
     return [
       '<div class="formgrid">',
         `<label class="field"><span>${this.esc(searchLabel)}</span>`,
@@ -676,7 +828,6 @@ export class AnarchyBuilder extends HTMLElement {
       `<div class="entry" data-entry-index="${index}">`,
         this.reorderHandleHTML('items', index, this.s.items[index].name || 'item'),
         this.field('Name', `${path}.name`),
-        this.field('Type', `${path}.type`, 'text', ['Weapon', 'Armor', 'Spell', 'Complex form', 'Equipment']),
         this.field('Description / type', `${path}.description`),
         this.field('Cost (¥)', `${path}.cost`, 'number'),
         `<button data-remove="${path}" class="small">×</button>`,
@@ -848,6 +999,20 @@ export class AnarchyBuilder extends HTMLElement {
 
 bind() {
   this.querySelectorAll('[data-reorder-list]').forEach(list => this.bindEntryReordering(list));
+  const skillAttributesToggle = this.querySelector('#skill-attributes-toggle');
+  if (skillAttributesToggle) {
+    const panel = this.querySelector('#skill-attributes-panel');
+    const setVisible = visible => {
+      this.skillAttributesVisible = visible;
+      skillAttributesToggle.setAttribute('aria-expanded', String(visible));
+      panel.hidden = !visible;
+    };
+    skillAttributesToggle.onclick = () => setVisible(!this.skillAttributesVisible);
+    this.querySelector('#skill-attributes-close').onclick = () => {
+      setVisible(false);
+      skillAttributesToggle.focus();
+    };
+  }
   this.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     this.clearNotice();
     this.tab = b.dataset.tab;
@@ -855,7 +1020,8 @@ bind() {
   });
   this.querySelectorAll('[data-path]').forEach(e => e.onchange = () => {
     const path = e.dataset.path;
-    const val = e.type === 'number' ? Number(e.value) : e.value;
+    const clearWoundRating = e.type === 'number' && e.value === '' && path.startsWith('woundSettings.');
+    const val = clearWoundRating ? null : e.type === 'number' ? Number(e.value) : e.value;
     if (/^skills\.\d+\.name$/.test(path) && this.s.skills.some((skill, i) => i !== Number(path.split('.')[1]) &&
         normalizeName(skill.name) === normalizeName(val))) {
       this.notify('Skill already selected.');
@@ -866,14 +1032,8 @@ bind() {
       this.notify('Shadow Amp already selected.');
       return
     }
-    if (/^items\.\d+\.type$/.test(path) && val === 'equipment' && this.s.items.filter(x => x.type === 'equipment')
-      .length >= 4 && this.s.items[Number(path.split('.')[1])].type !== 'equipment') {
-      this.notify('Maximum 4 equipment items.');
-      return
-    }
-
     const parts = path.split('.');
-    const skillChange = path.match(/^skills\.\d+\.name$/);
+    const skillChange = /^skills\.\d+\.name$/.test(path) && this.s.skills[+parts[1]].name !== val;
     if (/^amps\.\d+\.name$/.test(path)) {
       const amp = this.s.amps[+parts[1]];
       if (Object.hasOwn(amp, 'source') && normalizeName(amp.name) !== normalizeName(val)) {
@@ -893,33 +1053,58 @@ bind() {
       this.s[parts[0]][+parts[1]][parts[2]] = val;
     }
     if (path === 'role' && !conceptsForRole(val).some(c => c.name === this.s.concept)) this.s.concept = 'Random';
+    if (path === 'woundSettings.alternateType') {
+      this.s.woundSettings.alternateAttribute = ALTERNATE_WOUND_PRESETS[val].attribute;
+      this.s.woundSettings.alternateArmorName = ALTERNATE_WOUND_PRESETS[val].armorName ?? '';
+    }
     if (skillChange) {
       const skillIndex = parts[1];
       this.s.skills[skillIndex].specialization = '';
       this.s.skills[skillIndex].specializations = [];
-      const newSkill = SKILLS.find(([name]) => name === val);
-      this.s.skills[skillIndex].attribute = newSkill[1];
+      delete this.s.skills[skillIndex].specializationAttributes;
+      [this.s.skills[skillIndex].attribute] = linkedAttributes({ name: val });
     }
-    this.update()
-  });
-  this.querySelectorAll('[data-add-specialization]').forEach(el => el.onchange = () => {
-    const i = +el.dataset.addSpecialization;
-    if (el.value === '__custom__') {
-      const area = el.closest('.skill-entry');
-      const input = area.querySelector('[data-custom-for]');
-      const button = area.querySelector('[data-confirm-custom]');
-      input.hidden = false;
-      button.hidden = false;
-      input.focus();
-    } else if (el.value) this.addSpecialization(i, el.value);
-  });
-  this.querySelectorAll('[data-confirm-custom]').forEach(el => el.onclick = () => this.addSpecialization(+el.dataset
-    .confirmCustom, this.querySelector(`[data-custom-for="${el.dataset.confirmCustom}"]`).value));
-  this.querySelectorAll('[data-custom-for]').forEach(el => el.onkeydown = e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      this.addSpecialization(+el.dataset.customFor, el.value)
+    this.update();
+    if (path === 'woundSettings.alternateType' || path === 'woundSettings.alternateAttribute') {
+      this.querySelector(`[data-path="${path}"]`)?.focus();
     }
+  });
+  this.querySelectorAll('[data-add-specialization]').forEach(select => {
+    const picker = select.closest('.specialization-picker');
+    const tip = picker.querySelector('.custom-specialization');
+    const input = tip.querySelector('[data-custom-for]');
+    const attribute = tip.querySelector('[data-custom-attribute]');
+    const addButton = tip.querySelector('[data-confirm-custom]');
+    const index = Number(select.dataset.addSpecialization);
+    const close = () => {
+      tip.hidePopover();
+      select.value = '';
+      select.focus();
+    };
+    const add = () => {
+      if (!input.value.trim()) return;
+      tip.hidePopover();
+      this.addSpecialization(index, input.value, attribute.value);
+    };
+    select.onchange = () => {
+      if (select.value === '__custom__') {
+        tip.showPopover({ source: select });
+        input.focus();
+      } else {
+        tip.hidePopover();
+        if (select.value) this.addSpecialization(index, select.value, select.selectedOptions[0].dataset.attribute);
+      }
+    };
+    tip.querySelector('[data-close-custom]').onclick = close;
+    input.oninput = () => { addButton.disabled = !input.value.trim(); };
+    addButton.onclick = add;
+    tip.onkeydown = event => {
+      if (event.key === 'Escape') close();
+      if (event.key === 'Enter' && event.target === input) {
+        event.preventDefault();
+        add();
+      }
+    };
   });
   this.querySelectorAll('[data-remove-specialization]').forEach(el => el.onclick = () => {
     const [i, j] = el.dataset.removeSpecialization.split(':').map(Number);
@@ -959,16 +1144,16 @@ bind() {
         this.print();
         break;
       case 'addskill': {
-        const next = SKILLS.find(([name]) => !this.s.skills.some(skill => normalizeName(skill.name) ===
+        const next = this.availableSkills().find(name => !this.s.skills.some(skill => normalizeName(skill.name) ===
           normalizeName(name)));
         if (!next) {
           this.notify('All skills are already selected.');
           break
         }
         this.add('skills', {
-          name: next[0],
+          name: next,
           rating: 3,
-          attribute: next[1],
+          attribute: linkedAttributes({ name: next })[0],
           specialization: ''
         });
         break;
@@ -1059,9 +1244,10 @@ bindEntryReordering(list) {
   let suppressClick = false;
 
   const updateTarget = () => {
-    // Each row midpoint divides the insertion slots above and below it.
+    const grid = key === 'knowledge' && rows[0].offsetTop === rows[1].offsetTop;
     const next = rows.findIndex(row => {
-      const { top, height } = row.getBoundingClientRect();
+      const { top, bottom, left, width, height } = row.getBoundingClientRect();
+      if (grid && drag.y >= top && drag.y < bottom) return drag.x < left + width / 2;
       return drag.y < top + height / 2;
     });
     const slot = next < 0 ? rows.length : next;
@@ -1179,9 +1365,11 @@ print() {
     new URL('../images/clean-sheet.webp', import.meta.url).href +
     '");background-size:100% 100%;container-type:inline-size} .overlay{position:absolute;font-family:Arial,sans-serif;font-size:9px;color:#29140d;white-space:nowrap;overflow:hidden} .wound{position:absolute;border-radius:50%;background:#5d2e20}' +
     '.sheet-notes{box-sizing:border-box;height:273.5mm;padding:14mm;overflow:hidden;font:11pt/1.5 Arial,sans-serif}' +
-    '.sheet-notes h2{margin:0 0 .5em} .sheet-notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}' +
+    '.sheet-notes h2,.sheet-skills h2{margin:0 0 .5em} .sheet-notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}' +
+    '.sheet-skills{padding:14mm;font:11pt/1.4 Arial,sans-serif;color:#29140d}.sheet-skills table{width:100%;border-collapse:collapse}' +
+    '.sheet-skills :is(th,td){padding:2mm;border-bottom:1px solid #c5b1a3;text-align:left}.sheet-skills tr{break-inside:avoid}' +
     '@page{size:210mm 273.85mm;margin:0}' +
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact} .sheet-notes{break-before:page}}</style></head><body>' +
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact} .sheet-notes,.sheet-skills{break-before:page}}</style></head><body>' +
     this.printContentHTML() + '</body></html>');
   w.onbeforeprint = () => this.fitPrintedNotes(w.document);
   w.onload = () => setTimeout(() => w.print(), 350);
@@ -1203,14 +1391,50 @@ drawSheet() {
   this.querySelector('#sheetMount').markup = this.printContentHTML()
 }
 printContentHTML() {
-  return this.sheetHTML() + this.sheetNotesHTML(this.s.notes);
+  const { first, continued } = this.sheetSkillPages();
+  return this.sheetHTML(first) + this.sheetSkillsContinuedHTML(continued) + this.sheetNotesHTML(this.s.notes);
 }
 sheetNotesHTML(notes) {
   const text = String(notes || '');
   if (!text.trim()) return '';
   return `<section class="sheet-notes"><div><h2>Background / notes</h2><p>${this.esc(text)}</p></div></section>`;
 }
-sheetHTML() {
+sheetSkillPages() {
+  const first = [];
+  const continued = [];
+  this.s.skills.forEach(skill => {
+    const attributes = linkedAttributes(skill);
+    const specializations = getSpecializations(skill).filter(Boolean).map(value => ({
+      value, attribute: specializationAttribute(skill, value)
+    }));
+    const ratings = attributes.map(attribute => +this.s.attributes[attribute] || 0);
+    const groups = ratings.every(rating => rating === ratings[0]) ? [attributes] : attributes.map(attribute => [attribute]);
+    const page = continued.length || first.length + groups.length > skillSheetRowLimit ? continued : first;
+    groups.forEach(group => {
+      const [attribute] = group;
+      const attributeRating = +this.s.attributes[attribute] || 0;
+      const specs = specializations.filter(spec => group.includes(spec.attribute))
+        .map(spec => group.length > 1 ? `${spec.value} [${abbreviatedAttribute(spec.attribute)}]` : spec.value).join(', ');
+      page.push({
+        skill, attribute, attributeRating, specs,
+        label: specs ? `${skill.name} (${specs})` : skill.name,
+        attributeLabel: group.map(abbreviatedAttribute).join(', '),
+        pool: ((+skill.rating || 0) + attributeRating) + (specs.length ? ' (+2)' : '')
+      });
+    });
+  });
+  return { first, continued };
+}
+sheetSkillsContinuedHTML(rows) {
+  if (!rows.length) return '';
+  const entries = rows.map(({ skill, label, attributeLabel, pool }) =>
+    `<tr><th scope="row">${this.esc(label)}</th><td>${this.esc(skill.rating)}</td><td>${this.esc(attributeLabel)}</td><td>${pool}</td></tr>`);
+  return '<section class="sheet-skills"><h2>Skills continued</h2><table>' +
+    '<thead><tr><th scope="col">Skill</th><th scope="col">Rating</th><th scope="col">+ATT</th>' +
+    '<th scope="col">Dice pool</th></tr></thead>' +
+    `<tbody>${entries.join('')}</tbody></table></section>`;
+}
+sheetHTML(skillRows = this.sheetSkillPages().first) {
   const s = this.s;
   const lines = (values, x, y, step, w, max, size = 1.04, transform) => values.slice(0, max)
     .map((v, i) => this.sheetOverlayHTML(v, x, y + i * step, w, 1.7, size, undefined, transform)).join('');
@@ -1220,14 +1444,12 @@ sheetHTML() {
   const attrX = [6.1, 15.3, 24.3, 33.1, 42.5, 51.4];
   [...ATTRIBUTES.map(a => s.attributes[a]), s.edge].forEach((value, i) => h += this.sheetOverlayHTML(value, attrX[i], 12.0, 6.1, 3.1, 2.0,
     'center'));
-  s.skills.slice(0, 11).forEach((v, i) => {
+  skillRows.forEach(({ skill, label, attributeLabel, pool }, i) => {
     const y = 19.15 + i * 2.16;
-    const hasSpecialization = !!specializationLabel(v);
-    const att = +s.attributes[v.attribute] || 0;
-    h += this.sheetOverlayHTML(v.name + (hasSpecialization ? ' (+' + specializationLabel(v) + ')' : ''), 5.3, y, 24.8, 1.7, 1.2);
-    h += this.sheetOverlayHTML(v.rating, 31.3, y, 5, 1.7, 1.2, 'center');
-    h += this.sheetOverlayHTML(att, 38.6, y, 5, 1.7, 1.2, 'center');
-    h += this.sheetOverlayHTML((+v.rating || 0) + att + (hasSpecialization ? (' (+2)') : ''), 46, y, 5, 1.7, 1.2, 'center')
+    h += this.sheetOverlayHTML(label, 5.3, y, 24.8, 1.7, 1.2);
+    h += this.sheetOverlayHTML(skill.rating, 31.3, y, 5, 1.7, 1.2, 'center');
+    h += this.sheetOverlayHTML(attributeLabel, 38.25, y, 6.55, 1.7, 1.05, 'center');
+    h += this.sheetOverlayHTML(pool, 46, y, 5, 1.7, 1.2, 'center');
   });
   h += lines(s.amps.map(v => v.name + ' (' + v.rating + ')' + (v.notes ? ' ' + v.notes : '')), 5.3, 46, 2.16, 57, 11,
     1.2);
@@ -1243,25 +1465,7 @@ sheetHTML() {
   const gear = s.items.filter(v => v.type === 'armor' || (v.type === 'equipment' && !isFreeCommlink(v.name)));
   h += lines(gear.map(v => v.name + ' ' + money(v.cost)), 5.3, 89.3, 1.76, 20, 4, 1);
   h += this.sheetOverlayHTML('Remaining: ' + money(calc(s).remaining), 7, 96.45, 22, 1.3, 1);
-  const armor = mainArmor(s);
-  const strength = +s.attributes.Strength || 0,
-    willpower = +s.attributes.Willpower || 0;
-  const woundRows = [{
-    y: 91,
-    base: strength
-  }, {
-    y: 92.7,
-    base: strength + armor.protection
-  }, {
-    y: 94.5,
-    base: strength
-  }, {
-    y: 96.3,
-    base: willpower
-  }];
-  woundRows.forEach(row => [row.base, row.base + 3, row.base + 6].forEach((n, i) => h += this.sheetOverlayHTML(n, 44.6 + i * 5.5 + (i ==
-    2 ? -1 : 0), row.y, 4.4, 1.4, 1, 'center')));
-  h += this.sheetOverlayHTML(armor.name, 32.3, 92.8, 11, 1.5, 1);
+  h += this.sheetWoundsHTML();
   h += lines(s.keywords, 68.4, 38, 2.16, 26, 5, 1.2, 'rotateZ(-2deg)');
   h += lines(s.dispositions, 68.4, 54.6, 2.12, 27, 4, 1.2, 'rotateZ(2deg)');
   h += lines(s.cues, 68.4, 69.2, 2.84, 27, 5, 1.2, 'rotateZ(-1deg)');
@@ -1280,6 +1484,29 @@ sheetHTML() {
   });
   if (s.portrait) h += this.sheetPortraitHTML(s.portrait);  
   return h + '</div>';
+}
+
+sheetWoundsHTML() {
+  const { attributes, woundSettings } = this.s;
+  const { main, alternate } = woundArmor(this.s);
+  const { alternateType, alternateAttribute, alternateArmorIncrease, vehicleBody } = woundSettings;
+  const vehicle = alternateType === 'Vehicle';
+  const attribute = attributes[alternateAttribute];
+  const resistance = vehicle ? vehicleBody ?? attribute :
+    alternateType === 'Matrix' ? attribute ?? alternateArmorIncrease : attribute;
+  const protection = vehicle ? alternateArmorIncrease ?? 0 : alternate.protection;
+  const rows = [
+    [91, woundThresholds('Physical', attributes.Strength)],
+    [92.7, woundThresholds('Physical', attributes.Strength, main.protection)],
+    [96.3, woundThresholds('Mental', attributes.Willpower)]
+  ];
+  if (resistance != null) rows.push([94.5, woundThresholds(alternateType, resistance, protection)]);
+  const columns = [44.6, 50.1, 54.6];
+  let html = rows.map(([y, thresholds]) => thresholds.map((value, index) =>
+    this.sheetOverlayHTML(value, columns[index], y, 4.4, 1.4, 1, 'center')).join('')).join('');
+  html += this.sheetOverlayHTML(main.name, 32.3, 92.8, 11, 1.5, 1);
+  html += this.sheetOverlayHTML(alternate.name + (alternateArmorIncrease ? ` (${alternateArmorIncrease})` : ''), 34.8, 94.55, 9.2, 1.5, 1);
+  return html;
 }
 
 sheetOverlayHTML(value, x, y, w, h = 1.65, size = 1.04, align = 'left', transform) {

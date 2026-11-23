@@ -1,19 +1,17 @@
-import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, LEVELS, LIMITS, SKILLS } from './data.js';
+import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, LEVELS, LIMITS } from './data.js';
 import { CATALOG } from './catalog.js';
-import { calc, equipArmorAmp, maxed, pick } from './model.js';
+import { calc, equipArmorAmp, maxed, pick, priceSkill } from './model.js';
+import { linkedAttributes, SKILLS, specializationCode, TASKING } from './specializations.js';
 
-const skillAttributes = new Map(SKILLS);
 const conceptOnlyGroups = new Set(['Awakened', 'Cyberdeck', 'Rigger Command Console']);
-const restrictedSkills = new Set(['Sorcery', 'Conjuring', 'Tasking']);
+const restrictedSkills = new Set(['Sorcery', 'Conjuring', TASKING]);
 const purchaseThreshold = 20000;
-const maxSkills = 11;
+const maxSkills = 8;
 const maxAmps = 11;
 const normalizeName = name => name.trim().toLowerCase();
 
 function weaponSkill(group = '') {
-  if (group.includes('melee')) return 'Close Combat';
-  if (['Machine gun', 'Grenade launcher', 'Rocket launcher'].includes(group)) return 'Heavy Weapons';
-  return 'Firearms';
+  return group.toLowerCase().includes('melee') ? 'Close Combat' : 'Ranged Weapons';
 }
 
 export function startingKitKind(name, profile) {
@@ -33,6 +31,7 @@ export function makeAmp(name) {
 
 function attributeCost(s, name, target) {
   const maximum = LIMITS[s.metatype][ATTRIBUTES.indexOf(name)];
+  if (maximum === undefined) return 0;
   const next = Number(s.attributes[name]) + 1;
   if (next > maximum || (next === maximum && maxed(s) >= target.max)) return 0;
   return next === maximum ? 20000 : 10000;
@@ -43,7 +42,7 @@ export function upgradeGeneratedAttribute(s, target = LEVELS[s.level], linkedOnl
   if (remaining < purchaseThreshold) return false;
   const candidates = ATTRIBUTES.filter(name => {
     const cost = attributeCost(s, name, target);
-    return cost && cost <= remaining && (!linkedOnly || s.skills.some(skill => skill.attribute === name));
+    return cost && cost <= remaining && (!linkedOnly || s.skills.some(skill => linkedAttributes(skill).includes(name)));
   });
   if (!candidates.length) return false;
   const chosen = pick(candidates);
@@ -55,7 +54,11 @@ function addTraining(s, concept, target, [name, ...specializations]) {
   let skill = s.skills.find(row => row.name === name);
   if (!skill) {
     if (s.skills.length >= maxSkills) return false;
-    const attribute = concept.skillAttributes?.[name] ?? skillAttributes.get(name);
+    const attributes = linkedAttributes({ name });
+    const code = specializations.map(spec => specializationCode(name, spec)).find(Boolean);
+    const matching = code ? attributes.filter(attribute => code.split('/').includes(attribute[0])) : attributes;
+    const attribute = concept.skillAttributes?.[name] ??
+      (matching.includes(concept.attribute) ? concept.attribute : matching[0]);
     skill = { name, rating: 0, attribute, specialization: '', specializations: [] };
     s.skills.push(skill);
   }
@@ -107,7 +110,12 @@ export function trainGeneratedRunner(s, concept, ampNames) {
   const emerged = ampNames.includes(EMERGED_AMP);
   const hasAdeptPowers = requiredProfiles.some(profile => profile.adeptPowers);
   const unlocked = new Set(requiredProfiles.flatMap(profile => profile.unlocks ?? []));
-  const canTrain = skill => !restrictedSkills.has(skill) || unlocked.has(skill);
+  const canTrain = skill => {
+    if (skill === 'Cracking') {
+      return emerged || [...s.amps, ...s.items].some(({ name }) => startingKitKind(name, AMP_PROFILES[name]) === 'Cyberdeck');
+    }
+    return !restrictedSkills.has(skill) || unlocked.has(skill);
+  };
   const startingAttribute = s.level === 'Prime Runner' ? 2 : 1;
   s.attributes = Object.fromEntries(ATTRIBUTES.map(name => [name, startingAttribute]));
   if (CONCEPTS.Muscle.includes(concept)) s.attributes.Strength = 3;
@@ -158,7 +166,8 @@ export function trainGeneratedRunner(s, concept, ampNames) {
 
   for (const name of ampNames) {
     const profile = AMP_PROFILES[name];
-    const training = getAmpTraining(profile, canTrain);
+    const training = getAmpTraining(profile, skill => canTrain(skill) ||
+      (skill === 'Cracking' && startingKitKind(name, profile) === 'Cyberdeck'));
     buyAmp(s, name, training);
     reserveTraining(training);
   }
@@ -185,7 +194,8 @@ export function trainGeneratedRunner(s, concept, ampNames) {
         })) break;
       } else {
         const profile = AMP_PROFILES[kit.name];
-        const training = getAmpTraining(profile, canTrain);
+        const training = getAmpTraining(profile, skill => canTrain(skill) ||
+          (skill === 'Cracking' && concept.startingKit === 'Cyberdeck'));
         if (!training || !tryTraining(s, trial => {
           const replaced = new Set((profile.replaces ?? []).map(normalizeName));
           trial.items = trial.items.filter(item => item.type !== 'equipment' || !replaced.has(normalizeName(item.name)));
@@ -215,7 +225,8 @@ export function trainGeneratedRunner(s, concept, ampNames) {
     const loss = profile.essenceLoss ?? 0;
     const essence = Number(s.essence);
     if (loss && (essence - loss <= 0 || ((magical || emerged) && (loss > 0.5 || essence <= 5.5)))) return false;
-    const plan = getAmpTraining(profile, canTrain);
+    const plan = getAmpTraining(profile, skill => canTrain(skill) &&
+      (s.skills.length < maxSkills || s.skills.some(row => row.name === skill)));
     if (!plan) return false;
     const duplicates = plan.training.map(([skill]) => skill).filter(skill => claimed.has(skill));
     if (duplicates.length) return buySkill(duplicates, true);
@@ -225,9 +236,14 @@ export function trainGeneratedRunner(s, concept, ampNames) {
   }
 
   function buySkill(names, existingOnly = false) {
+    const remaining = calc(s).remaining;
     const candidates = [...new Set(names)].filter(name => {
+      if (!canTrain(name)) return false;
       const skill = s.skills.find(row => row.name === name);
-      return canTrain(name) && (skill ? skill.rating < target.skill : !existingOnly && s.skills.length < maxSkills);
+      if (!skill) return !existingOnly && s.skills.length < maxSkills;
+      if (skill.rating >= target.skill) return false;
+      const cost = priceSkill(skill.rating + 1) - priceSkill(skill.rating) + attributeCost(s, skill.attribute, target);
+      return cost <= remaining;
     });
     while (candidates.length) {
       const name = candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
@@ -240,7 +256,7 @@ export function trainGeneratedRunner(s, concept, ampNames) {
   let skillChance = 50;
   let upgradedAttribute = false;
   const buyAnySkill = () => {
-    if (!buySkill([...skillAttributes.keys()])) return false;
+    if (!buySkill(emerged ? [...SKILLS, TASKING] : SKILLS)) return false;
     skillChance = Math.max(10, skillChance - 10);
     return true;
   };
