@@ -5,8 +5,8 @@ import { linkedAttributes, SKILLS, specializationCode, TASKING } from './special
 
 const conceptOnlyGroups = new Set(['Awakened', 'Cyberdeck', 'Rigger Command Console']);
 const restrictedSkills = new Set(['Sorcery', 'Conjuring', TASKING]);
-const purchaseThreshold = 20000;
-const maxSkills = 8;
+const purchaseThreshold = 10000;
+const maxSkills = 7;
 const maxAmps = 11;
 const normalizeName = name => name.trim().toLowerCase();
 
@@ -252,29 +252,22 @@ export function trainGeneratedRunner(s, concept, ampNames) {
     return false;
   }
 
-  let iterations = 0;
-  let skillChance = 50;
-  let upgradedAttribute = false;
-  const buyAnySkill = () => {
-    if (!buySkill(emerged ? [...SKILLS, TASKING] : SKILLS)) return false;
-    skillChance = Math.max(10, skillChance - 10);
-    return true;
-  };
+  // const buyAnySkill = () => {
+  //   if (!buySkill(emerged ? [...SKILLS, TASKING] : SKILLS)) return false;
+  //   skillChance = Math.max(10, skillChance - 10);
+  //   return true;
+  // };
   const buyAttribute = () => {
-    if (!upgradeGeneratedAttribute(s, target, false)) return false;
-    skillChance = Math.min(90, skillChance + 10);
-    upgradedAttribute = true;
-    return true;
+    upgradeGeneratedAttribute(s, target);
   };
-  while (calc(s).remaining >= purchaseThreshold) {
+  let iterations = 0;
+  while (calc(s).remaining >= purchaseThreshold || s.amps.length >= maxAmps) {
     iterations++;
-    const boughtAmp = buyOptionalAmp();
+    buyOptionalAmp();
+    
     if (calc(s).remaining < purchaseThreshold) break;
 
-    const boughtTraining = Math.random() * 100 < skillChance
-      ? buyAnySkill() || buyAttribute()
-      : buyAttribute() || buyAnySkill();
-    if (!boughtAmp && !boughtTraining && (!ampOptions.length || s.amps.length >= maxAmps)) break;
+    buyAttribute()
   }
-  return { iterations, upgradedAttribute };
+  return { iterations };
 }

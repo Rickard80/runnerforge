@@ -422,7 +422,7 @@ export class AnarchyBuilder extends HTMLElement {
     s.amps = sortedAmps(s.amps);
     s.items = sortedItems(s.items);
     this.s = s;
-    //console.log('Character generation spending iterations:', iterations);
+    console.log('Character generation spending iterations:', iterations);
     this.notify('Generated ' + c.name + ' · ' + s.metatype + ' · ' + s.level +
       '; review rule warnings and Amp effects.');
   }
@@ -455,8 +455,8 @@ export class AnarchyBuilder extends HTMLElement {
       .flatMap(([value, code]) => {
         const codes = code.split('/');
         return codes.map(initial => {
-          const attribute = codes.length > 1 ? ATTRIBUTES.find(name => name[0] === initial) : '';
-          return `<option value="${this.esc(value)}" data-attribute="${attribute}">${this.esc(value)} (+${initial})</option>`;
+          const attribute = ATTRIBUTES.find(name => name[0] === initial);
+          return `<option value="${this.esc(value)}" data-attribute="${attribute}">${this.esc(value)} (${abbreviatedAttribute(attribute)})</option>`;
         });
       })
       .join('');
@@ -1448,7 +1448,7 @@ sheetHTML(skillRows = this.sheetSkillPages().first) {
     const y = 19.15 + i * 2.16;
     h += this.sheetOverlayHTML(label, 5.3, y, 24.8, 1.7, 1.2);
     h += this.sheetOverlayHTML(skill.rating, 31.3, y, 5, 1.7, 1.2, 'center');
-    h += this.sheetOverlayHTML(attributeLabel, 38.25, y, 6.55, 1.7, 1.05, 'center');
+    h += this.sheetOverlayHTML(attributeLabel, 38.25, y, 7.55, 1.7, 1.05, 'center');
     h += this.sheetOverlayHTML(pool, 46, y, 5, 1.7, 1.2, 'center');
   });
   h += lines(s.amps.map(v => v.name + ' (' + v.rating + ')' + (v.notes ? ' ' + v.notes : '')), 5.3, 46, 2.16, 57, 11,
