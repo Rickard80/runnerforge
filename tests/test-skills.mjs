@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { AMP_PROFILES, CONCEPTS } from '../src/domain/data/rules.js';
+import { AMP_PROFILES } from '../src/domain/data/amp-profiles.js';
+import { CONCEPTS } from '../src/domain/data/concepts.js';
 import { trainGeneratedRunner } from '../src/domain/generation.js';
 import { blank, calc } from '../src/domain/model.js';
 import { linkedAttributes, SKILLS, skillRule, specializationCode } from '../src/domain/specializations.js';

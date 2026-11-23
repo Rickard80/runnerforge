@@ -1,13 +1,6 @@
-import {
-  ATTRIBUTES,
-  LIMITS,
-  LEVELS,
-  CONCEPTS,
-  conceptsForRole,
-  AMP_PROFILES,
-  EMERGED_AMP,
-  SHADOW_AMP_RULES_SOURCE
-} from '../../domain/data/rules.js';
+import { AMP_PROFILES, EMERGED_AMP, SHADOW_AMP_RULES_SOURCE, makeAmp } from '../../domain/data/amp-profiles.js';
+import { CONCEPTS, conceptsForRole } from '../../domain/data/concepts.js';
+import { ATTRIBUTES, LIMITS, LEVELS } from '../../domain/data/rules.js';
 import {
   CATALOG
 } from '../../domain/data/catalog.js';
@@ -18,7 +11,7 @@ import {
 } from '../../domain/data/personality.js';
 import { abbreviatedAttribute, getSpecializations, linkedAttributes, SKILLS, skillRule, specializationAttribute, specializationOptions, TASKING } from '../../domain/specializations.js';
 import { KNOWLEDGE_SKILLS } from '../../domain/data/knowledge.js';
-import { makeAmp, startingKitKind, trainGeneratedRunner } from '../../domain/generation.js';
+import { startingKitKind, trainGeneratedRunner } from '../../domain/generation.js';
 import {
   money,
   pick,
@@ -93,37 +86,26 @@ const pickUnique = (pool, count) => {
   while (copy.length && out.length < count) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
   return out;
 };
-// Avoid repeated template stems or endings within a character's generated personality.
-const dispositionEndings = [
-  ['even when the payout is tempting', 'despite the payout'],
-  ['especially when everyone else is panicking', 'when others panic'],
-  ['unless the facts prove otherwise', 'until proven wrong'],
-  ['before the situation turns ugly', 'before trouble hits']
-];
-const personalityParts = text => {
+// Avoid repeated openings or endings in generated cues.
+const cueParts = text => {
   const value = String(text).trim();
   const cue = value.split(/\s+—\s*/);
   if (cue.length > 1) return [cue[0].trim(), cue.slice(1).join(' — ').trim()];
-  const disposition = value.replace(/\.$/, '');
-  for (const [original, shortened] of dispositionEndings) {
-    const ending = [original, shortened].find(ending => disposition.endsWith(' ' + ending));
-    if (ending) return [disposition.slice(0, -ending.length).trimEnd(), original];
-  }
   return [value, ''];
 };
-const pickDistinctPersonality = (pool, count) => {
-  const available = [...new Set(pool)];
+const pickDistinctCues = count => {
+  const available = [...new Set(STREETWISE_CUES)];
   const selected = [],
     first = new Set(),
     second = new Set();
   while (selected.length < count) {
     const choices = available.filter(value => {
-      const [a, b] = personalityParts(value);
+      const [a, b] = cueParts(value);
       return !first.has(normalizeName(a)) && (!b || !second.has(normalizeName(b)))
     });
     if (!choices.length) break;
     const value = pick(choices),
-      [a, b] = personalityParts(value);
+      [a, b] = cueParts(value);
     selected.push(value);
     first.add(normalizeName(a));
     if (b) second.add(normalizeName(b));
@@ -294,8 +276,8 @@ export class AnarchyBuilder extends HTMLElement {
     if (s.personality) {
       s.keywords = [s.metatype, c.name, pick(KEYWORDS), pick(
         ['Smog-choked Aubur', 'Gilded Bellevue', 'Neon Downtown', 'Salt-crusted Everett', 'Scorched Barrens', 'Lawless Redmond', 'Striving Renton', 'Agri-corp Snohomish', 'Rain-slicked Tacoma'])];
-      s.dispositions = pickDistinctPersonality(DISPOSITIONS, 2);
-      s.cues = pickDistinctPersonality(STREETWISE_CUES, 2)
+      s.dispositions = pickUnique(DISPOSITIONS, 2);
+      s.cues = pickDistinctCues(2)
     }
     const awakened = CONCEPTS.Awakened.includes(c);
     const spellCount = c.spellCount ?? (awakened ? 2 : 0);
@@ -527,7 +509,7 @@ export class AnarchyBuilder extends HTMLElement {
       '<div class="formgrid">',
         ...fields,
         this.field(`Edge (metatype baseline ${limits[5]})`, 'edge', 'number'),
-        this.field('Essence (optional)', 'essence'),
+        this.field('Essence', 'essence'),
       '</div>',
       '<p class="muted">The final point at the metatype maximum costs 20,000¥. Metatype and level restrictions warn but never block edits.</p>'
     ].join('');
@@ -562,7 +544,7 @@ export class AnarchyBuilder extends HTMLElement {
           ...alternateFields,
         '</fieldset>',
       '</div>',
-      '<p class="muted">A selected attribute supplies Firewall for Matrix wounds or the default Body for Vehicle wounds.</p>'
+      '<p class="muted">A selected attribute supplies Firewall for Matrix wounds or the default Body for Vehicle damage.</p>'
     ].join('');
   }
 

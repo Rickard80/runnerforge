@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { makeAmp } from '../src/domain/generation.js';
+import { makeAmp } from '../src/domain/data/amp-profiles.js';
 import { blank, equipArmorAmp, woundArmor, woundThresholds } from '../src/domain/model.js';
 
 globalThis.HTMLElement = class {};

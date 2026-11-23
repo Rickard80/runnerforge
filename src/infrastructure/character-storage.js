@@ -1,5 +1,7 @@
 import { CATALOG } from '../domain/data/catalog.js';
-import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, conceptsForRole } from '../domain/data/rules.js';
+import { AMP_PROFILES, EMERGED_AMP } from '../domain/data/amp-profiles.js';
+import { CONCEPTS, conceptsForRole } from '../domain/data/concepts.js';
+import { ATTRIBUTES } from '../domain/data/rules.js';
 import { ALTERNATE_WOUND_PRESETS, blank } from '../domain/model.js';
 import { normalizeName } from '../domain/names.js';
 

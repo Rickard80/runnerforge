@@ -1,9 +1,5 @@
-import {
-  AMP_PROFILES,
-  ATTRIBUTES,
-  LIMITS,
-  LEVELS
-} from './data/rules.js';
+import { AMP_PROFILES } from './data/amp-profiles.js';
+import { ATTRIBUTES, LIMITS, LEVELS } from './data/rules.js';
 import { getSpecializations } from './specializations.js';
 
 export const isFreeCommlink = name => /commlink/i.test(name);
@@ -117,6 +113,8 @@ export function calc(s) {
     0);
   const spent = attr + skills + knowledge + amps + items;
   const warnings = [];
+  const essence = String(s.essence ?? '').trim().replace(',', '.');
+  if (essence && Number(essence) <= 0) warnings.push('Essence must be greater than 0.');
   if (s.items.filter(x => x.type === 'equipment' && !isFreeCommlink(x.name)).length > 4) warnings.push(
     'Maximum 4 equipment items; remove extras.');
   if (spent > level.budget) warnings.push('Budget exceeded by ' + money(spent - level.budget));

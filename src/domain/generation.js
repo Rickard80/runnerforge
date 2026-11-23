@@ -1,4 +1,6 @@
-import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, LEVELS, LIMITS } from './data/rules.js';
+import { AMP_PROFILES, EMERGED_AMP, makeAmp } from './data/amp-profiles.js';
+import { CONCEPTS } from './data/concepts.js';
+import { ATTRIBUTES, LEVELS, LIMITS } from './data/rules.js';
 import { CATALOG } from './data/catalog.js';
 import { calc, equipArmorAmp, maxed, pick, priceSkill } from './model.js';
 import { linkedAttributes, specializationCode, TASKING } from './specializations.js';
@@ -22,11 +24,6 @@ export function startingKitKind(name, profile) {
   if (profile?.group === 'Rigger Command Console' || /\b(?:vehicle control rig|rigger command console)\b/i.test(name)) {
     return 'Rigger';
   }
-}
-
-export function makeAmp(name) {
-  const { rating, source, effect, essenceLoss, armor } = AMP_PROFILES[name];
-  return { name, rating, source, notes: effect, ...(essenceLoss ? { essenceLoss } : {}), ...(armor !== undefined ? { armor } : {}) };
 }
 
 function attributeCost(s, name, target) {
