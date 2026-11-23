@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { makeAmp } from './js/generation.js';
-import { blank, equipArmorAmp, woundArmor, woundThresholds } from './js/model.js';
+import { makeAmp } from '../src/domain/generation.js';
+import { blank, equipArmorAmp, woundArmor, woundThresholds } from '../src/domain/model.js';
 
 globalThis.HTMLElement = class {};
 globalThis.customElements = { define() {} };
-const { AnarchyBuilder } = await import('./js/builder.js');
+const { AnarchyBuilder } = await import('../src/ui/builder/builder.js');
+const { sheetWoundsHTML } = await import('../src/ui/print-sheet.js');
 
 assert.deepEqual(woundThresholds('Physical', 4, 2), [6, 9, 12]);
 assert.deepEqual(woundThresholds('Mental', 5, 1), [6, 9, 12]);
@@ -44,7 +45,7 @@ armorInput.onchange();
 assert.equal(woundArmor(app.s).main.protection, 2);
 
 Object.assign(app.s.attributes, { Strength: 3, Willpower: 5, Logic: 4 });
-const numbersAt = y => [...app.sheetWoundsHTML().matchAll(new RegExp(`top:${y}%;[^>]+>(\\d+)<`, 'g'))].map(match => Number(match[1]));
+const numbersAt = y => [...sheetWoundsHTML(app.s).matchAll(new RegExp(`top:${y}%;[^>]+>(\\d+)<`, 'g'))].map(match => Number(match[1]));
 typeInput.onchange();
 assert.equal(app.s.woundSettings.alternateAttribute, '---');
 assert.equal(app.s.woundSettings.alternateArmorName, 'Vehicle');
@@ -66,7 +67,7 @@ Object.assign(app.s.woundSettings, {
 assert.deepEqual(numbersAt(91), [3, 6, 9]);
 assert.deepEqual(numbersAt(92.7), [5, 8, 11]);
 assert.deepEqual(numbersAt(94.5), [6, 10, 14]);
-assert.match(app.sheetWoundsHTML(), /Travel coat.*Vehicle shell/);
+assert.match(sheetWoundsHTML(app.s), /Travel coat.*Vehicle shell/);
 
 typeInput.value = 'Matrix';
 typeInput.onchange();

@@ -1,5 +1,5 @@
 import { CATALOG } from './catalog.js';
-import { SKILLS, TASKING, specializationOptions } from './specializations.js';
+import { SKILLS, TASKING, specializationOptions } from '../specializations.js';
 
 const ATTRIBUTES = ['Strength', 'Agility', 'Willpower', 'Logic', 'Charisma'];
 const LIMITS = {
@@ -390,6 +390,11 @@ const CONCEPTS = {
       amps: ['Bar Owner', 'Well-Stocked Closet'], weight: 2, source: 'pp. 139, 164' }
   ]
 };
+export const conceptsForRole = role => {
+  if (role === 'Any') return Object.values(CONCEPTS).flat();
+  return Object.hasOwn(CONCEPTS, role) ? CONCEPTS[role] : [];
+};
+
 export {
   ATTRIBUTES,
   LIMITS,

@@ -6,14 +6,14 @@ globalThis.customElements = {
 const {
   calc,
   maxed
-} = await import('./js/model.js');
+} = await import('../src/domain/model.js');
 const {
   LEVELS
-} = await import('./js/data.js');
+} = await import('../src/domain/data/rules.js');
 const {
   AnarchyBuilder,
   upgradeGeneratedAttribute
-} = await import('./js/builder.js');
+} = await import('../src/ui/builder/builder.js');
 for (const name of ['Combat Mage 85', 'Street Shaman 13', 'Illusionist 76', 'Illusionist 43']) {
   const s = JSON.parse(fs.readFileSync(`/mnt/data/${name}.json`, 'utf8'));
   console.log('Uploaded fixture:', name, 'remaining', calc(s).remaining, 'maxed', maxed(s), 'max allowed', LEVELS[s

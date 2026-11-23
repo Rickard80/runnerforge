@@ -56,9 +56,9 @@ export class RunnerPortraitEditor extends HTMLElement {
       }));
       this.remove()
     };
-    this.addEventListener('keydown', e => {
-      if (e.key === 'Escape') this.remove()
-    });
+    this.onkeydown = event => {
+      if (event.key === 'Escape') this.remove();
+    };
     stage.focus();
   }
   open(source) {

@@ -1,3 +1,5 @@
+import { normalizeName } from './names.js';
+
 // Core skills and specializations, with the existing conversion-guide skill for technomancers.
 const CORE_SKILLS = {
   Athletics: {
@@ -119,3 +121,16 @@ export function specializationOptions(name) {
 export function specializationCode(name, specialization) {
   return specializationOptions(name).find(([value]) => value.toLowerCase() === specialization.toLowerCase())?.[1];
 }
+
+export const getSpecializations = skill => Array.isArray(skill.specializations) ?
+  skill.specializations.map(v => String(v || '').trim()) :
+  String(skill.specialization || '').split(',').map(v => v.trim()).filter(Boolean);
+export const abbreviatedAttribute = attribute => String(attribute ?? '').slice(0, 3).toUpperCase();
+export const specializationAttribute = (skill, value) => {
+  const attributes = linkedAttributes(skill);
+  const code = specializationCode(skill.name, value);
+  const allowed = code ? attributes.filter(attribute => code.split('/').includes(attribute[0])) : attributes;
+  const selected = skill.specializationAttributes?.[normalizeName(value)];
+  if (allowed.includes(selected)) return selected;
+  return allowed.includes(skill.attribute) ? skill.attribute : allowed[0];
+};

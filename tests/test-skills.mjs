@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { AMP_PROFILES, CONCEPTS } from './js/data.js';
-import { trainGeneratedRunner } from './js/generation.js';
-import { blank, calc } from './js/model.js';
-import { linkedAttributes, SKILLS, skillRule, specializationCode } from './js/specializations.js';
+import { AMP_PROFILES, CONCEPTS } from '../src/domain/data/rules.js';
+import { trainGeneratedRunner } from '../src/domain/generation.js';
+import { blank, calc } from '../src/domain/model.js';
+import { linkedAttributes, SKILLS, skillRule, specializationCode } from '../src/domain/specializations.js';
 
 globalThis.HTMLElement = class {};
 globalThis.customElements = { define() {} };
-const { AnarchyBuilder } = await import('./js/builder.js');
+const { AnarchyBuilder } = await import('../src/ui/builder/builder.js');
+const { printContentHTML, sheetSkillPages } = await import('../src/ui/print-sheet.js');
 
 function checkTraining([name, ...specializations]) {
   assert(skillRule(name), `Unknown skill ${name}`);
@@ -43,7 +44,7 @@ app.s.attributes.Strength = 4;
 app.s.attributes.Agility = 3;
 app.s.attributes.Charisma = 3;
 app.s.attributes.Willpower = 4;
-const { first, continued } = app.sheetSkillPages();
+const { first, continued } = sheetSkillPages(app.s);
 assert.equal(first.length, 10);
 assert.deepEqual(first.slice(0, 2).map(row => [row.attribute, row.specs, row.pool]), [
   ['Strength', 'Climbing', '7 (+2)'],
@@ -52,15 +53,15 @@ assert.deepEqual(first.slice(0, 2).map(row => [row.attribute, row.specs, row.poo
 assert.deepEqual(first.slice(2, 4).map(row => row.specs), ['Lockpicking', '']);
 assert.deepEqual(first.slice(4, 7).map(row => row.specs), ['First Aid', 'Animals', 'Composure']);
 assert.deepEqual(continued.map(row => row.attribute), ['Logic', 'Charisma']);
-const sheet = app.printContentHTML();
-assert.doesNotMatch(sheet, /ⓘ|info-control/);
+const sheet = printContentHTML(app.s);
+assert.doesNotMatch(sheet, /ⓘ|runner-info/);
 assert.match(sheet, />Athletics \(Climbing\)<.*left:38\.25%[^>]*>STR</);
 assert.match(sheet, />Athletics \(Parkour\)<.*left:38\.25%[^>]*>AGI</);
 assert.match(sheet, />Perception<.*left:38\.25%[^>]*>LOG</);
 assert.match(sheet, /Skills continued.*Conjuring \(Banishing\)<\/th><td>3<\/td><td>LOG<.*Conjuring<\/th><td>3<\/td><td>CHA</);
 assert.doesNotMatch(sheet, /Athletics, STR|Athletics, AGI|Conjuring, LOG/);
 app.tab = 'attributes';
-assert.match(app.tabContentHTML(), /aria-label="About Survival".*ⓘ/);
+assert.match(app.tabContentHTML(), /<runner-info label="About Survival"/);
 assert.match(app.tabContentHTML(), /aria-expanded="false".*id="skill-attributes-panel"[^>]* hidden>/);
 const toggle = {
   setAttribute(name, value) { this[name] = value; },
@@ -84,23 +85,23 @@ assert.equal(toggle['aria-expanded'], 'false');
 assert.equal(toggle.focused, true);
 assert.equal(panel.hidden, true);
 app.s.amps.push({ name: 'An Amp' });
-assert.match(app.ampsHTML(), /class="info-control".*ⓘ/);
-assert.doesNotMatch(app.skillRowHTML(app.s.skills[2], 2), /ⓘ|info-control/);
+assert.match(app.ampsHTML(), /<runner-info label="Source for An Amp"/);
+assert.doesNotMatch(app.skillRowHTML(app.s.skills[2], 2), /ⓘ|runner-info/);
 assert.deepEqual(linkedAttributes({ name: 'Firearms', attribute: 'Agility' }), ['Agility']);
 app.removeSpecialization(1, 0);
-assert.match(app.skillRowHTML(app.s.skills[1], 1), /data-attribute="Agility">Lockpicking \(\+A\).*data-attribute="Logic">Lockpicking \(\+L\)/);
+assert.match(app.skillRowHTML(app.s.skills[1], 1), /data-attribute="Agility">Lockpicking \(AGI\).*data-attribute="Logic">Lockpicking \(LOG\)/);
 app.addSpecialization(1, 'Lockpicking', 'Logic');
-assert.deepEqual(app.sheetSkillPages().first.slice(2, 4).map(row => [row.label, row.attribute]), [
+assert.deepEqual(sheetSkillPages(app.s).first.slice(2, 4).map(row => [row.label, row.attribute]), [
   ['Stealth', 'Agility'],
   ['Stealth (Lockpicking)', 'Logic']
 ]);
 
 app.s.attributes.Strength = 3;
-const mergedAthletics = app.sheetSkillPages().first.filter(row => row.skill.name === 'Athletics');
+const mergedAthletics = sheetSkillPages(app.s).first.filter(row => row.skill.name === 'Athletics');
 assert.equal(mergedAthletics.length, 1);
 assert.equal(mergedAthletics[0].attributeLabel, 'STR, AGI');
 assert.equal(mergedAthletics[0].label, 'Athletics (Climbing [STR], Parkour [AGI])');
-assert.match(app.skillRowHTML(app.s.skills[0], 0), /Strength 6.*Agility 6.*data-path="skills.0.name"/);
+assert.match(app.skillRowHTML(app.s.skills[0], 0), /strength 6.*agility 6.*data-path="skills.0.name"/);
 assert.match(app.skillRowHTML(app.s.skills[0], 0), /popover="manual".*role="dialog".*Custom specialization.*>Name<.*>Attribute<.*data-close-custom.*data-confirm-custom disabled/);
 app.s.knowledge = ['Seattle', 'Street vendors'];
 assert.match(app.skillsHTML(), /class="stack knowledge-grid"/);
@@ -133,6 +134,6 @@ try {
   Math.random = random;
 }
 assert.deepEqual(capped.skills.map(row => row.name), names);
-assert(capped.skills.every(row => row.rating === 4));
+assert.deepEqual(capped.skills.map(row => row.rating), [4, 4, 4, 4, 4, 4, 4, 3]);
 assert(calc(capped).remaining >= 0);
 console.log('Passed skill definitions, specialization dice pools, continuation rows, and capped generation.');

@@ -1,7 +1,7 @@
 # Runner Forge
 
-<p style="max-width: min(210px, 30%); margin-left: 0.5rem; float: right;"><img width="210" src="images/rickOrc.webp" /></p>
-Every run starts with a name, a loadout, and a credstick. Runner Forge is your offline workbench for **Shadowrun Anarchy 2.0**. Build your runner by hand, let the generator put together a draft, and see how much nuyen you’ve got left before you hit the street. Your browser keeps the local saves.
+<p style="max-width: min(210px, 30%); margin-left: 0.5rem; float: right;"><img width="210" src="assets/images/rickOrc.webp" /></p>
+Every run starts with a name, a loadout, and a credstick. Runner Forge is your offline workbench for **Shadowrun** Anarchy 2.0**. Build your runner by hand, let the generator put together a draft, and see how much nuyen you’ve got left before you hit the street. Your browser keeps the local saves.
 
 https://rickard80.github.io/runnerforge/
 
@@ -13,6 +13,17 @@ python3 -m http.server 8000
 ```
 
 Then visit http://localhost:8000.
+
+## Project layout
+
+| Location | Responsibility |
+| --- | --- |
+| `index.html` | Static browser entry point |
+| `src/domain/` | Character rules, calculations, generation logic, and reference data |
+| `src/infrastructure/` | Browser storage and saved-character migration |
+| `src/ui/` | Character builder, shared Web Components, and printable character sheet |
+| `assets/` | Stylesheets and images served directly by the browser |
+| `tests/` | Skill, wound, and character generation checks |
 
 ## Identity and character generation
 

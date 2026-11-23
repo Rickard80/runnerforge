@@ -3,9 +3,11 @@ import {
   ATTRIBUTES,
   LIMITS,
   LEVELS
-} from './data.js';
-const $ = s => document.querySelector(s),
-  money = n => new Intl.NumberFormat('en-US').format(Math.round(n)) + '¥';
+} from './data/rules.js';
+import { getSpecializations } from './specializations.js';
+
+export const isFreeCommlink = name => /commlink/i.test(name);
+const money = n => new Intl.NumberFormat('en-US').format(Math.round(n)) + '¥';
 const uid = () => Math.random().toString(36).slice(2, 10);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 export const ALTERNATE_WOUND_PRESETS = {
@@ -107,16 +109,15 @@ export function calc(s) {
     const n = +s.attributes[a] || 0;
     for (let k = 1; k <= n; k++) attr += k === LIMITS[s.metatype][i] ? 20000 : 10000
   });
-  const skills = s.skills.reduce((n, x) => n + priceSkill(x.rating) + ((Array.isArray(x.specializations) ? x
-    .specializations.filter(v => String(v).trim()).length : String(x.specialization || '').split(',').filter(v =>
-      v.trim()).length) * 2500), 0);
+  const skills = s.skills.reduce((total, skill) =>
+    total + priceSkill(skill.rating) + getSpecializations(skill).filter(Boolean).length * 2500, 0);
   const knowledge = s.knowledge.filter(x => x.trim()).length * 2500;
   const amps = s.amps.reduce((total, amp) => total + priceAmp(amp), 0);
-  const items = s.items.reduce((n, x) => n + (x.type === 'equipment' && /commlink/i.test(x.name) ? 0 : (+x.cost || 0)),
+  const items = s.items.reduce((n, x) => n + (x.type === 'equipment' && isFreeCommlink(x.name) ? 0 : (+x.cost || 0)),
     0);
   const spent = attr + skills + knowledge + amps + items;
   const warnings = [];
-  if (s.items.filter(x => x.type === 'equipment' && !/commlink/i.test(x.name)).length > 4) warnings.push(
+  if (s.items.filter(x => x.type === 'equipment' && !isFreeCommlink(x.name)).length > 4) warnings.push(
     'Maximum 4 equipment items; remove extras.');
   if (spent > level.budget) warnings.push('Budget exceeded by ' + money(spent - level.budget));
   ATTRIBUTES.forEach((a, i) => {

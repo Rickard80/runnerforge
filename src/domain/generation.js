@@ -1,7 +1,7 @@
-import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, LEVELS, LIMITS } from './data.js';
-import { CATALOG } from './catalog.js';
+import { AMP_PROFILES, ATTRIBUTES, CONCEPTS, EMERGED_AMP, LEVELS, LIMITS } from './data/rules.js';
+import { CATALOG } from './data/catalog.js';
 import { calc, equipArmorAmp, maxed, pick, priceSkill } from './model.js';
-import { linkedAttributes, SKILLS, specializationCode, TASKING } from './specializations.js';
+import { linkedAttributes, specializationCode, TASKING } from './specializations.js';
 
 const conceptOnlyGroups = new Set(['Awakened', 'Cyberdeck', 'Rigger Command Console']);
 const restrictedSkills = new Set(['Sorcery', 'Conjuring', TASKING]);
@@ -118,7 +118,12 @@ export function trainGeneratedRunner(s, concept, ampNames) {
   };
   const startingAttribute = s.level === 'Prime Runner' ? 2 : 1;
   s.attributes = Object.fromEntries(ATTRIBUTES.map(name => [name, startingAttribute]));
+  if (s.metatype === 'Dwarf') {
+    s.attributes.Strength++;
+    s.attributes.Willpower++;
+  }
   if (CONCEPTS.Muscle.includes(concept)) s.attributes.Strength = 3;
+  if (['Ork', 'Troll'].includes(s.metatype)) s.attributes.Strength++;
   if (CONCEPTS.Awakened.includes(concept)) s.attributes.Willpower++;
   s.essence = '6';
 
@@ -252,22 +257,15 @@ export function trainGeneratedRunner(s, concept, ampNames) {
     return false;
   }
 
-  // const buyAnySkill = () => {
-  //   if (!buySkill(emerged ? [...SKILLS, TASKING] : SKILLS)) return false;
-  //   skillChance = Math.max(10, skillChance - 10);
-  //   return true;
-  // };
-  const buyAttribute = () => {
-    upgradeGeneratedAttribute(s, target);
-  };
   let iterations = 0;
-  while (calc(s).remaining >= purchaseThreshold || s.amps.length >= maxAmps) {
+  let upgradedAttribute = false;
+  while (calc(s).remaining >= purchaseThreshold) {
     iterations++;
-    buyOptionalAmp();
-    
+    const boughtAmp = buyOptionalAmp();
     if (calc(s).remaining < purchaseThreshold) break;
-
-    buyAttribute()
+    const raisedAttribute = upgradeGeneratedAttribute(s, target);
+    upgradedAttribute ||= raisedAttribute;
+    if (!boughtAmp && !raisedAttribute && (!ampOptions.length || s.amps.length >= maxAmps)) break;
   }
-  return { iterations };
+  return { iterations, upgradedAttribute };
 }

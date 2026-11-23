@@ -42,9 +42,6 @@
   --color-sheet-text: #2b1c13;
   --color-sheet-overlay-text: #251b16;
   --color-wound-fill: #5d2e20;
-  --color-wound-border: #6d3520;
-  --color-rr-mark-fill: #dba82a;
-  --color-rr-mark-border: #a26820;
 
   /* Portrait editor */
   --color-portrait-backdrop: #000b;
@@ -54,7 +51,6 @@
   --color-portrait-crop-background: #0d1512;
 
   /* Specializations */
-  --color-specialization-divider: #33473c;
   --color-specialization-badge-background: #334a3c;
   --color-specialization-badge-text: #f2dfab;
   --color-specialization-badge-border: #637756;
@@ -465,7 +461,7 @@ nav {
   }
 }
 
-.info-control {
+runner-info {
   position: relative;
   align-self: end;
 
@@ -508,7 +504,7 @@ nav {
     white-space: pre-line
   }
 
-  &[open] .info-text,
+  & details[open] .info-text,
   & summary:focus-visible .info-text {
     visibility: visible;
   }
@@ -785,18 +781,8 @@ nav {
     background: var(--color-wound-fill);
     opacity: .9;
 
-    &.empty {
-      background: var(--color-transparent);
-      border: 1px solid var(--color-wound-border)
-    }
   }
 
-  & .rrmark {
-    position: absolute;
-    border-radius: 50%;
-    border: 1px solid var(--color-rr-mark-border);
-    background: var(--color-rr-mark-fill)
-  }
 }
 
 @media print {
@@ -809,8 +795,14 @@ nav {
   }
 }
 
-runner-panel {
+runner-panel,
+runner-catalog,
+runner-print-sheet {
   display: block
+}
+
+runner-budget {
+  display: contents
 }
 
 runner-field {
@@ -952,28 +944,6 @@ runner-portrait-editor {
   }
 }
 
-.specializations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: start
-}
-
-.specialization-field {
-  flex: 1;
-  min-width: 145px;
-
-  & select,
-  & input {
-    width: 100%;
-    min-width: 0
-  }
-
-  & input {
-    margin-top: 6px
-  }
-}
-
 .skill-entry {
   display: block;
 
@@ -998,7 +968,7 @@ runner-portrait-editor {
     min-width: 165px
   }
 
-  & .specialization-picker {
+  & runner-specialization-picker {
     display: flex;
     flex: 1.3;
     min-width: 150px;
@@ -1025,14 +995,6 @@ runner-portrait-editor {
   @media (max-width: 620px) {
     grid-template-columns: 1fr
   }
-}
-
-.skill-heading {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-bottom: 8px
 }
 
 .custom-specialization {
@@ -1107,38 +1069,6 @@ runner-field[path^="items."][path$=".description"] {
   font-weight: 700
 }
 
-.skill-pools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--color-field-label);
-  font-size: .85rem
-}
-
-.specialization-area {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--color-specialization-divider)
-}
-
-.specialization-picker {
-  display: flex;
-  align-items: end;
-  gap: 8px;
-  flex-wrap: wrap;
-
-  & .field {
-    width: min(310px, 100%)
-  }
-
-  & [hidden] {
-    display: none !important
-  }
-}
-
 .specialization-badges {
   display: flex;
   flex-wrap: wrap;
@@ -1171,11 +1101,11 @@ runner-field[path^="items."][path$=".description"] {
   }
 }
 
-[heading="Exact-template print preview"] [data-action="generate"] {
+.print-panel [data-action="generate"] {
   margin-left: auto
 }
 
-[heading="Shadow Amps"] .actions {
+.amps-panel .actions {
   align-items: end;
   justify-content: space-between;
 
