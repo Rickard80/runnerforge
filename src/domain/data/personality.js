@@ -1,4 +1,7 @@
-// Original runner personality prompts.
+export const PERSONALITY_LABELS = { keywords: 'Keyword', dispositions: 'Disposition', cues: 'Cue' };
+export const PERSONALITY_ENTRY_COUNT = 4;
+export const PERSONALITY_ENTRY_LENGTH = 50;
+
 export const KEYWORDS = [
   "Independent",
   "Loyal",

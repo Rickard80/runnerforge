@@ -52,9 +52,10 @@ const blank = () => ({
     incapacitated: 0
   }
 });
-const priceSkill = r => Array.from({
-  length: Math.max(0, +r || 0)
-}, (_, i) => i < 5 ? 2500 : 5000).reduce((a, b) => a + b, 0);
+const priceSkill = r => {
+  const rating = Math.max(0, Math.floor(+r || 0));
+  return Math.min(rating, 5) * 2500 + Math.max(rating - 5, 0) * 5000;
+};
 const priceAmp = amp => (+amp.rating || 0) * 5000;
 const ampArmor = amp => amp.armor ?? AMP_PROFILES[amp.name]?.armor;
 
@@ -102,8 +103,9 @@ export function calc(s) {
   const level = LEVELS[s.level];
   let attr = 0;
   ATTRIBUTES.forEach((a, i) => {
-    const n = +s.attributes[a] || 0;
-    for (let k = 1; k <= n; k++) attr += k === LIMITS[s.metatype][i] ? 20000 : 10000
+    const rating = Math.max(0, Math.floor(+s.attributes[a] || 0));
+    attr += rating * 10000;
+    if (rating >= LIMITS[s.metatype][i]) attr += 10000;
   });
   const skills = s.skills.reduce((total, skill) =>
     total + priceSkill(skill.rating) + getSpecializations(skill).filter(Boolean).length * 2500, 0);

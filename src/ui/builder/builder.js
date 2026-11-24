@@ -7,7 +7,10 @@ import {
 import {
   KEYWORDS,
   DISPOSITIONS,
-  STREETWISE_CUES
+  STREETWISE_CUES,
+  PERSONALITY_ENTRY_COUNT,
+  PERSONALITY_ENTRY_LENGTH,
+  PERSONALITY_LABELS
 } from '../../domain/data/personality.js';
 import { abbreviatedAttribute, getSpecializations, linkedAttributes, SKILLS, skillRule, specializationAttribute, specializationOptions, TASKING } from '../../domain/specializations.js';
 import { KNOWLEDGE_SKILLS } from '../../domain/data/knowledge.js';
@@ -26,7 +29,7 @@ import {
 } from '../../domain/model.js';
 import { normalizeName } from '../../domain/names.js';
 import { readSavedCharacters, restoreCharacter, writeSavedCharacters } from '../../infrastructure/character-storage.js';
-import { escapeHTML, optionHTML } from '../html.js';
+import { escapeHTML, inlineInputHTML, optionHTML } from '../html.js';
 import { infoIcon } from '../components/info.js';
 import '../components/entry-list.js';
 import { specializationPickerHTML } from './specialization-picker.js';
@@ -121,7 +124,7 @@ export class AnarchyBuilder extends HTMLElement {
   constructor() {
     super();
     this.s = blank();
-    this.tab = 'identity';
+    this.tab = 'print';
     this.skillAttributesVisible = false;
     this.notice = '';
     this.catalogFilters = {
@@ -418,20 +421,25 @@ export class AnarchyBuilder extends HTMLElement {
     const drafts = this.tab === 'skills'
       ? Array.from(this.querySelectorAll('runner-specialization-picker'), picker => picker.draft).filter(Boolean)
       : [];
-    const budget = calc(this.s);
     const tabs = ['identity', 'attributes', 'skills', 'magic', 'gear', 'personality', 'print'];
     const names = Object.keys(this.saves).sort();
     const body = this.tabContentHTML();
 
     this.innerHTML = this.layoutHTML(names, tabs, body);
-    const { level, metatype } = this.s;
-    this.querySelector('runner-budget').summary = { budget, limit: LEVELS[level].budget, level, metatype };
+    this.updateBudget();
     this.bind();
     for (const draft of drafts) {
       const index = this.s.skills.findIndex(skill => skill.name === draft.skill);
       this.querySelector(`runner-specialization-picker[index="${index}"]`)?.restoreDraft(draft);
     }
-    if (this.tab === 'print') this.querySelector('#sheetMount').character = this.s;
+    const sheet = this.querySelector('#sheetMount');
+    if (sheet) sheet.character = this.s;
+    this.bindInlineFields(sheet);
+  }
+
+  updateBudget(budget = calc(this.s)) {
+    const { level, metatype } = this.s;
+    this.querySelector('runner-budget').summary = { budget, limit: LEVELS[level].budget, level, metatype };
   }
 
   tabContentHTML() {
@@ -707,11 +715,17 @@ export class AnarchyBuilder extends HTMLElement {
   }
 
   personalityHTML() {
+    const groups = Object.entries(PERSONALITY_LABELS).map(([key, label]) => {
+      const values = this.s[key];
+      const inputs = Array.from({ length: Math.max(PERSONALITY_ENTRY_COUNT, values.length) }, (_, index) =>
+        inlineInputHTML(values[index], {
+          path: `${key}.${index}`, label: `${label} ${index + 1}`, maxLength: PERSONALITY_ENTRY_LENGTH
+        }));
+      return `<fieldset><legend>${label}s</legend>${inputs.join('')}</fieldset>`;
+    });
     return [
-      '<div class="formgrid">',
-        this.field('Keywords (one per line)', 'keywordsText', 'textarea'),
-        this.field('Dispositions (one per line)', 'dispositionsText', 'textarea'),
-        this.field('Cues (one per line)', 'cuesText', 'textarea'),
+      '<div class="formgrid personality-fields">',
+        ...groups,
       '</div>',
       '<div class="background-wide">',
         this.field('Background / notes', 'notes', 'textarea'),
@@ -727,7 +741,7 @@ export class AnarchyBuilder extends HTMLElement {
         '<button data-action="json">Export JSON</button>',
         '<button data-action="generate">Generate character</button>',
       '</div>',
-      '<p class="muted">To save a PDF, choose “Save to PDF” in your browser’s print dialog.</p>',
+      '<p class="muted">Select a highlighted field to edit it. To save a PDF, choose “Save to PDF” in your browser’s print dialog.</p>',
       '<div class="preview-frame"><runner-print-sheet id="sheetMount"></runner-print-sheet></div>'
     ].join('');
   }
@@ -985,19 +999,50 @@ export class AnarchyBuilder extends HTMLElement {
       });
       catalog.addEventListener('catalog-pick', ({ detail }) => this.addCatalogItem(detail));
     }
-    for (const [field, key] of [
-        ['keywordsText', 'keywords'],
-        ['dispositionsText', 'dispositions'],
-        ['cuesText', 'cues']
-      ]) {
-      const el = this.querySelector(`[data-path="${field}"]`);
-      if (el) {
-        el.value = this.s[key].join('\n');
-        el.onchange = () => {
-          this.s[key] = el.value.split('\n').map(x => x.trim()).filter(Boolean);
-          this.update()
-        }
+  }
+
+  bindInlineFields(sheet) {
+    const editor = sheet ?? this.querySelector('.personality-fields');
+    if (!editor) return;
+    editor.addEventListener('input', event => this.editInlineField(event, sheet));
+    editor.addEventListener('focusout', event => this.editInlineField(event, sheet));
+  }
+
+  editInlineField({ type, target }, sheet) {
+    const path = target.dataset.inlinePath;
+    if (!path) return;
+    const parts = path.split('.');
+    const key = parts.pop();
+    const record = parts.reduce((object, part) => object[part], this.s);
+    const armorName = parts[0] === 'woundSettings';
+    if (type === 'focusout') {
+      if (armorName) {
+        const { main, alternate } = woundArmor(this.s);
+        target.value = key === 'mainArmorName' ? main.name : alternate.name;
+      } else {
+        target.value = record[key] ?? '';
+        if (Array.isArray(record)) sheet?.fitPersonalityEntry(target);
       }
+      return;
+    }
+    if (armorName) {
+      record[key] = target.value.trim();
+    } else if (Array.isArray(record)) {
+      const value = target.value.slice(0, PERSONALITY_ENTRY_LENGTH).trim();
+      if (value === (record[key] ?? '')) return;
+      while (record.length < Number(key)) record.push('');
+      record[key] = value;
+      while (record.at(-1) === '') record.pop();
+    } else if (target.type === 'text') {
+      record[key] = target.value;
+    } else {
+      const value = target.valueAsNumber;
+      if (!Number.isSafeInteger(value) || value === record[key]) return;
+      record[key] = value;
+      if (key === 'edge') return;
+      const budget = calc(this.s);
+      this.updateBudget(budget);
+      sheet.refreshRatings(this.s, target, budget.remaining);
     }
   }
   addCatalogItem({ type, name, cost }) {
