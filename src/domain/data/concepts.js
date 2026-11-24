@@ -2,27 +2,6 @@ import { EMERGED_AMP, TECHNOMANCER_SOURCE } from './amp-profiles.js';
 import { TASKING } from '../specializations.js';
 
 export const CONCEPTS = {
-  Muscle: [
-    { name: 'Bodyguard', attribute: 'Strength', skills: ['Close Combat', 'Ranged Weapons', 'Perception'],
-      amps: ['Dermal Plating', 'Reaction Enhancer'], weight: 2, source: 'p. 250' },
-    { name: 'Combat Adept', attribute: 'Agility', skills: ['Close Combat', 'Athletics', 'Perception'],
-      amps: ['Awakened (Adept)', 'Killing Hands'], weight: 2, source: 'pp. 108–109' },
-    { name: 'Mercenary', attribute: 'Agility', skills: ['Ranged Weapons', 'Survival'],
-      specializations: { 'Ranged Weapons': ['Heavy Weapons'] },
-      amps: ['Smartlink', 'Reaction Enhancer'], weight: 2, source: 'p. 252' },
-    { name: 'Razorgirl', attribute: 'Agility', skills: ['Close Combat', 'Stealth', 'Athletics'],
-      amps: ['Ares Wired Reflexes', 'Synthetic Cyberarm with Cyberspur'], weight: 3, source: 'pp. 90–91' },
-    { name: 'Sprawl Ganger', attribute: 'Agility', skills: ['Close Combat', 'Ranged Weapons', 'Piloting'],
-      specializations: { Piloting: ['Bikes'] },
-      amps: ['Ganger'], vehicleGroup: 'Motorcycle', weight: 2, source: 'pp. 164, 238, 244' },
-    { name: 'Street Samurai', attribute: 'Agility', skills: ['Close Combat', 'Ranged Weapons', 'Athletics'],
-      amps: ['Ares Wired Reflexes', 'Smartlink'], weight: 3, source: 'pp. 90–91' },
-    { name: 'Tank', attribute: 'Strength', skills: ['Close Combat', 'Ranged Weapons', 'Survival'],
-      amps: ['Dermal Plating', 'Platelet Factories'], weight: 2, source: 'pp. 104–105 (Drakk)' },
-    { name: 'Weapons Specialist', attribute: 'Agility', skills: ['Ranged Weapons', 'Engineering'],
-      specializations: { Engineering: ['Mechanical B&R'], 'Ranged Weapons': ['Rifles', 'Heavy Weapons'] }, equipment: ['Tool kit'],
-      amps: ['Reflex Recorder (Rifles)', 'Gunsmith'], weight: 2, source: 'pp. 159, 164 (Reflex Recorder and Gunsmith contact)' }
-  ],
   Awakened: [
     { name: 'Beast Summoner', attribute: 'Charisma', skills: ['Conjuring', 'Survival', 'Perception'],
       skillAttributes: { Conjuring: 'Charisma' }, specializations: { Conjuring: ['Spirits of Beasts'], Survival: ['Animals'] }, spellCount: 0,
@@ -43,17 +22,41 @@ export const CONCEPTS = {
       specializations: { [TASKING]: ['Complex Forms', 'Compilation'] },
       amps: [EMERGED_AMP, 'Data Haven'], weight: 2, source: TECHNOMANCER_SOURCE }
   ],
-  Tech: [
-    { name: 'Combat Decker', attribute: 'Logic', skills: ['Cracking', 'Ranged Weapons', 'Athletics'],
-      amps: ['Datajack', 'Ares ProShooter Cybernetic Eyes'], startingKit: 'Cyberdeck', weight: 2, source: 'pp. 106–107' },
-    { name: 'Decker', attribute: 'Logic', skills: ['Cracking', 'Electronics', 'Perception'],
-      amps: ['Unlocked Datajack', 'Data Haven'], startingKit: 'Cyberdeck', weight: 4, source: 'pp. 94–95' },
-    { name: 'Drone Specialist', attribute: 'Logic', skills: ['Piloting', 'Engineering', 'Perception'],
-      amps: ['Unlocked Datajack', 'Cyberspace Design Quadrotor'], startingKit: 'Rigger', weight: 2, source: 'pp. 100–101' },
-    { name: 'Rigger', attribute: 'Logic', skills: ['Engineering', 'Piloting', 'Electronics'],
-      amps: ['Mechanic'], startingKit: 'Rigger', vehicleGroup: 'Any', randomDrone: true, weight: 4, source: 'pp. 96–97' },
-    { name: 'Security Expert', attribute: 'Logic', skills: ['Electronics', 'Engineering', 'Ranged Weapons'],
-      amps: ['Datajack', 'GM-Nissan Doberman'], startingKit: 'Rigger', weight: 2, source: 'p. 253' },
+  Influence: [
+    { name: 'Arms Dealer', attribute: 'Charisma', skills: ['Influence', 'Ranged Weapons', 'Network'],
+      amps: ['Gunsmith', 'Fixer'], weight: 2, source: 'p. 164' },
+    { name: 'Con Artist', attribute: 'Charisma', skills: ['Influence', 'Stealth', 'Network'],
+      amps: ['Makeup Kit', 'Well-Stocked Closet'], weight: 2, source: 'p. 139' },
+    { name: 'Face', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
+      amps: ['Tailored Pheromones', 'Well-Stocked Closet'], weight: 4, source: 'pp. 88–89' },
+    { name: 'Fixer', attribute: 'Charisma', skills: ['Network', 'Influence'],
+      specializations: { Influence: ['Intimidation'] }, amps: ['Fixer', 'Bar Owner'], weight: 2, source: 'p. 164' },
+    { name: 'Gang Leader', attribute: 'Charisma', skills: ['Influence', 'Network', 'Ranged Weapons'],
+      specializations: { Influence: ['Intimidation'] }, amps: ['Ganger', 'Bar Owner'], weight: 2, source: 'p. 244' },
+    { name: 'Rocker', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
+      specializations: { Network: ['Media'] },
+      amps: ['Bar Owner', 'Well-Stocked Closet'], weight: 2, source: 'pp. 139, 164' }
+  ],
+  Muscle: [
+    { name: 'Bodyguard', attribute: 'Strength', skills: ['Close Combat', 'Ranged Weapons', 'Perception'],
+      amps: ['Dermal Plating', 'Reaction Enhancer'], weight: 2, source: 'p. 250' },
+    { name: 'Combat Adept', attribute: 'Agility', skills: ['Close Combat', 'Athletics', 'Perception'],
+      amps: ['Awakened (Adept)', 'Killing Hands'], weight: 2, source: 'pp. 108–109' },
+    { name: 'Mercenary', attribute: 'Agility', skills: ['Ranged Weapons', 'Survival'],
+      specializations: { 'Ranged Weapons': ['Heavy Weapons'] },
+      amps: ['Smartlink', 'Reaction Enhancer'], weight: 2, source: 'p. 252' },
+    { name: 'Razorgirl', attribute: 'Agility', skills: ['Close Combat', 'Stealth', 'Athletics'],
+      amps: ['Ares Wired Reflexes', 'Synthetic Cyberarm with Cyberspur'], weight: 3, source: 'pp. 90–91' },
+    { name: 'Sprawl Ganger', attribute: 'Agility', skills: ['Close Combat', 'Ranged Weapons', 'Piloting'],
+      specializations: { Piloting: ['Bikes'] },
+      amps: ['Ganger'], vehicleGroup: 'Motorcycle', weight: 2, source: 'pp. 164, 238, 244' },
+    { name: 'Street Samurai', attribute: 'Agility', skills: ['Close Combat', 'Ranged Weapons', 'Athletics'],
+      amps: ['Ares Wired Reflexes', 'Smartlink'], weight: 3, source: 'pp. 90–91' },
+    { name: 'Tank', attribute: 'Strength', skills: ['Close Combat', 'Ranged Weapons', 'Survival'],
+      amps: ['Dermal Plating', 'Platelet Factories'], weight: 2, source: 'pp. 104–105 (Drakk)' },
+    { name: 'Weapons Specialist', attribute: 'Agility', skills: ['Ranged Weapons', 'Engineering'],
+      specializations: { Engineering: ['Mechanical B&R'], 'Ranged Weapons': ['Rifles', 'Heavy Weapons'] }, equipment: ['Tool kit'],
+      amps: ['Reflex Recorder (Rifles)', 'Gunsmith'], weight: 2, source: 'pp. 159, 164 (Reflex Recorder and Gunsmith contact)' }
   ],
   Specialist: [
     { name: 'Bounty Hunter', attribute: 'Logic', skills: ['Perception', 'Ranged Weapons'],
@@ -81,21 +84,19 @@ export const CONCEPTS = {
       skillAttributes: { Survival: 'Logic' }, specializations: { Piloting: ['Cars'], Survival: ['First Aid'] }, equipment: ['Medkit'],
       amps: ['Mechanic'], vehicleGroup: 'Car', weight: 2, source: 'p. 238 (Vehicle selection)' }
   ],
-  Influence: [
-    { name: 'Arms Dealer', attribute: 'Charisma', skills: ['Influence', 'Ranged Weapons', 'Network'],
-      amps: ['Gunsmith', 'Fixer'], weight: 2, source: 'p. 164' },
-    { name: 'Con Artist', attribute: 'Charisma', skills: ['Influence', 'Stealth', 'Network'],
-      amps: ['Makeup Kit', 'Well-Stocked Closet'], weight: 2, source: 'p. 139' },
-    { name: 'Face', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
-      amps: ['Tailored Pheromones', 'Well-Stocked Closet'], weight: 4, source: 'pp. 88–89' },
-    { name: 'Fixer', attribute: 'Charisma', skills: ['Network', 'Influence'],
-      specializations: { Influence: ['Intimidation'] }, amps: ['Fixer', 'Bar Owner'], weight: 2, source: 'p. 164' },
-    { name: 'Gang Leader', attribute: 'Charisma', skills: ['Influence', 'Network', 'Ranged Weapons'],
-      specializations: { Influence: ['Intimidation'] }, amps: ['Ganger', 'Bar Owner'], weight: 2, source: 'p. 244' },
-    { name: 'Rocker', attribute: 'Charisma', skills: ['Influence', 'Network', 'Perception'],
-      specializations: { Network: ['Media'] },
-      amps: ['Bar Owner', 'Well-Stocked Closet'], weight: 2, source: 'pp. 139, 164' }
-  ]
+  Tech: [
+    { name: 'Combat Decker', attribute: 'Logic', skills: ['Cracking', 'Ranged Weapons', 'Athletics'],
+      amps: ['Datajack', 'Ares ProShooter Cybernetic Eyes'], startingKit: 'Cyberdeck', weight: 2, source: 'pp. 106–107' },
+    { name: 'Decker', attribute: 'Logic', skills: ['Cracking', 'Electronics', 'Perception'],
+      amps: ['Unlocked Datajack', 'Data Haven'], startingKit: 'Cyberdeck', weight: 4, source: 'pp. 94–95' },
+    { name: 'Drone Specialist', attribute: 'Logic', skills: ['Piloting', 'Engineering', 'Perception'],
+      amps: ['Unlocked Datajack', 'Cyberspace Design Quadrotor'], startingKit: 'Rigger', weight: 2, source: 'pp. 100–101' },
+    { name: 'Rigger', attribute: 'Logic', skills: ['Engineering', 'Piloting', 'Electronics'],
+      amps: ['Mechanic'], startingKit: 'Rigger', vehicleGroup: 'Any', randomDrone: true, weight: 4, source: 'pp. 96–97' },
+    { name: 'Security Expert', attribute: 'Logic', skills: ['Electronics', 'Engineering', 'Ranged Weapons'],
+      amps: ['Datajack', 'GM-Nissan Doberman'], startingKit: 'Rigger', weight: 2, source: 'p. 253' },
+  ],
+
 };
 export const conceptsForRole = role => {
   if (role === 'Any') return Object.values(CONCEPTS).flat();

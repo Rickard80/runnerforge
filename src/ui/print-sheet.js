@@ -153,7 +153,7 @@ export function sheetWoundsHTML(s) {
   let html = rows.map(([y, thresholds]) => thresholds.map((value, index) =>
     sheetOverlayHTML(value, columns[index], y, 4.4, 1.4, 1, 'center')).join('')).join('');
   html += sheetOverlayHTML(main.name, 32.3, 92.8, 11, 1.5, 1);
-  html += sheetOverlayHTML(alternate.name + (alternateArmorIncrease ? ` (${alternateArmorIncrease})` : ''), 34.8, 94.55, 9.2, 1.5, 1);
+  html += sheetOverlayHTML(alternate.name, 34.8, 94.55, 9.2, 1.5, 1);
   return html;
 }
 

@@ -270,7 +270,7 @@ export class AnarchyBuilder extends HTMLElement {
     s.role = this.s.role;
     s.concept = this.s.concept;
     s.personality = this.s.personality;
-    s.metatype = c.metatype ?? pick(['Human', 'Human', 'Elf', 'Dwarf', 'Ork', 'Troll']);
+    s.metatype = c.metatype ?? pick(['Dwarf', 'Elf', 'Human', 'Human', 'Ork', 'Troll']);
     s.edge = LIMITS[s.metatype][5];
     s.name = c.name + ' ' + Math.floor(Math.random() * 90 + 10);
     if (s.personality) {

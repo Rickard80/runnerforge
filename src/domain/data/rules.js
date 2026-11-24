@@ -1,8 +1,8 @@
 export const ATTRIBUTES = ['Strength', 'Agility', 'Willpower', 'Logic', 'Charisma'];
 export const LIMITS = {
-  Human: [4, 4, 4, 4, 4, 4],
   Elf: [4, 4, 4, 4, 5, 3],
   Dwarf: [4, 4, 5, 4, 4, 3],
+  Human: [4, 4, 4, 4, 4, 4],
   Ork: [5, 4, 4, 4, 4, 3],
   Troll: [6, 4, 4, 4, 4, 3]
 };
