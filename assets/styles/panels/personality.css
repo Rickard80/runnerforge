@@ -1,0 +1,16 @@
+.personality-fields input + input {
+  margin-top: 8px;
+}
+
+.background-wide {
+  width: 100%;
+  margin-bottom: 18px;
+
+  & runner-field {
+    width: 100%;
+  }
+
+  & textarea {
+    min-height: 190px;
+  }
+}

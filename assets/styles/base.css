@@ -1,0 +1,126 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: var(--color-button-background);
+  color: var(--color-button-text);
+  border: 1px solid var(--color-button-border);
+  border-radius: var(--radius-control);
+  padding: 10px 13px;
+
+  &:hover {
+    background: var(--color-button-hover-background);
+  }
+
+  &.primary {
+    background: var(--color-accent);
+    color: var(--color-primary-button-text);
+    border-color: var(--color-accent);
+    font-weight: 750;
+  }
+
+  &.danger {
+    border-color: var(--color-danger-border);
+    color: var(--color-danger-text);
+
+    &:hover {
+      background: var(--color-danger-hover-background);
+    }
+  }
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  background: var(--color-input-background);
+  color: var(--color-input-text);
+  border: 1px solid var(--color-input-border);
+  border-radius: 7px;
+  padding: 9px;
+  min-width: 0;
+}
+
+input[type=checkbox] {
+  width: auto;
+}
+
+h1 {
+  font-size: 32px;
+  margin: 3px 0;
+}
+
+h2 {
+  font-size: 19px;
+  margin: 0 0 18px;
+}
+
+h3 {
+  font-size: 14px;
+  margin: 16px 0 10px;
+}
+
+p {
+  line-height: 1.5;
+}
+
+.formgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.muted {
+  color: var(--color-muted-text);
+  font-size: 13px;
+}
+
+.formgrid > fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius-control);
+
+  & legend {
+    padding-inline: 4px;
+    font-weight: 600;
+  }
+
+  & runner-field + runner-field {
+    margin-top: 10px;
+  }
+}
+
+.surface {
+  background: var(--color-panel-background);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-panel);
+}
+
+:where(button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

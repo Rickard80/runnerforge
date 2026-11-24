@@ -1,3 +1,4 @@
+import { ITEM_TYPE } from './rules.js';
 const equipmentByCategory = {
   Communication: [
     "Binoculars",
@@ -59,7 +60,7 @@ const equipmentByCategory = {
 };
 
 export const CATALOG = {
-  "vehicle": [
+  [ITEM_TYPE.Vehicle]: [
     { name: 'Racing Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
       effect: 'Pilot 6, Body 4, Handling 2, Speed 6, Armor 0.' },
     { name: 'Off-road Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
@@ -93,7 +94,7 @@ export const CATALOG = {
     { name: 'Eurocar Northstar 2.0', group: 'Car', rating: 6, source: 'p. 97 (Charon)',
       effect: 'SUV. Pilot 6, Body 7, Handling 1, Speed 4, Armor 1. RR 1 on Piloting (cars). Smuggling compartment and concealed forward weapon mount.' }
   ],
-  "complex form": [
+  [ITEM_TYPE.ComplexForm]: [
     {
       "name": "Infusion of Firewall",
       "cost": 5000,
@@ -107,7 +108,7 @@ export const CATALOG = {
       "source": "Anarchy 2.0 Conversion Guide, p. 9"
     }
   ],
-  "weapon": [
+  [ITEM_TYPE.Weapon]: [
     {
       "name": "Survival knife",
       "cost": 2500,
@@ -517,7 +518,7 @@ export const CATALOG = {
       "source": "pp. 142–148"
     }
   ],
-  "spell": [
+  [ITEM_TYPE.Spell]: [
     {
       "name": "Manabolt",
       "cost": 5000,
@@ -729,7 +730,7 @@ export const CATALOG = {
       "source": "pp. 180–184"
     }
   ],
-  "armor": [
+  [ITEM_TYPE.Armor]: [
     {
       "name": "Armored clothing (1)",
       "cost": 2500,
@@ -773,7 +774,7 @@ export const CATALOG = {
       "source": "pp. 148–149"
     }
   ],
-  equipment: Object.entries(equipmentByCategory).flatMap(([group, names]) =>
-    names.map(name => ({ name, group, cost: 2500, source: 'Reference/example — verify exact price' }))
+  [ITEM_TYPE.Equipment]: Object.entries(equipmentByCategory).flatMap(([groupStr, namesArr]) =>
+    namesArr.map(nameStr => ({ name: nameStr, group: groupStr, cost: 2500, source: 'Reference/example — verify exact price' }))
   )
 };

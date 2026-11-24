@@ -1,0 +1,7 @@
+.portrait-preview {
+  max-height: 220px;
+  max-width: min(220px, 100%);
+  object-fit: cover;
+  display: block;
+  margin: 15px 0;
+}

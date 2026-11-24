@@ -1,0 +1,58 @@
+body {
+  margin: 0;
+  color: #29140d;
+}
+
+.sheet {
+  width: 210mm;
+  height: 273.5mm;
+}
+
+.sheet .overlay {
+  font-size: 9px;
+}
+
+.sheet-notes {
+  box-sizing: border-box;
+  height: 273.5mm;
+  padding: 14mm;
+  overflow: hidden;
+  font: 11pt / 1.5 Arial, sans-serif;
+  color: black;
+}
+
+.sheet-notes h2,
+.sheet-skills h2 {
+  margin: 0 0 .5em;
+}
+
+.sheet-skills {
+  padding: 14mm;
+  font: 11pt / 1.4 Arial, sans-serif;
+
+  & :is(th, td) {
+    padding: 2mm;
+    border-bottom: 1px solid #c5b1a3;
+  }
+
+  & tr {
+    break-inside: avoid;
+  }
+}
+
+@page {
+  size: 210mm 273.85mm;
+  margin: 0;
+}
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .sheet-notes,
+  .sheet-skills {
+    break-before: page;
+  }
+}

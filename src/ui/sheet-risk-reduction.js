@@ -6,26 +6,26 @@ import { escapeHTML } from './html.js';
 const columnCenters = [53.04, 55.41, 57.78];
 
 export function sheetRiskReductionHTML(rowObj, optionsObj, top) {
-  return rowTargets(rowObj, optionsObj.riskReductionObj).map(({ scope, targets }, index) => {
+  return rowTargets(rowObj, optionsObj.riskReductionObj).map(({ scope: scopeStr, targets: targetsArr }, index) => {
     const position = top === undefined ? null : { left: columnCenters[index], top };
-    return markHTML({ skillName: rowObj.skill.name, scope, targets, position }, optionsObj);
+    return markHTML({ skillName: rowObj.skill.name, scope: scopeStr, targets: targetsArr, position }, optionsObj);
   }).join('');
 }
 
 export function refreshSheetRiskReduction(sheetObj, riskReductionObj) {
   for (const control of sheetObj.querySelectorAll('button[data-rr-keys]')) {
     const keys = JSON.parse(control.dataset.rrKeys);
-    const isActive = keys.some(key => riskReductionObj.manualKeysSet.has(key) || riskReductionObj.ampGrantsMap.has(key));
+    const isActive = keys.some(keyStr => riskReductionObj.manualKeysSet.has(keyStr) || riskReductionObj.ampGrantsMap.has(keyStr));
     control.setAttribute('aria-pressed', String(isActive));
   }
 }
 
 function rowTargets(rowObj, { ampGrantsMap }) {
   const { skill, attributeGroup, specializations } = rowObj;
-  const attributes = attributeGroup.filter(Boolean).map(name => riskReductionTarget(RR_SCOPE.Attribute, name));
+  const attributes = attributeGroup.filter(Boolean).map(nameStr => riskReductionTarget(RR_SCOPE.Attribute, nameStr));
   const skills = skill.name ? [riskReductionTarget(RR_SCOPE.Skill, skill.name)] : [];
-  const specializationTargets = new Map(specializations.map(({ value }) => {
-    const target = riskReductionTarget(RR_SCOPE.Specialization, skill.name, value);
+  const specializationTargets = new Map(specializations.map(({ value: valueStr }) => {
+    const target = riskReductionTarget(RR_SCOPE.Specialization, skill.name, valueStr);
     return [target.key, target];
   }));
   for (const { target } of ampGrantsMap.values()) {
@@ -38,35 +38,35 @@ function rowTargets(rowObj, { ampGrantsMap }) {
   ];
 }
 
-function isSpecializationForRow({ skill, attributeGroup }, targetObj) {
-  if (targetObj.scope !== RR_SCOPE.Specialization || normalizeName(targetObj.name) !== normalizeName(skill.name)) return false;
+function isSpecializationForRow({ skill: skillObj, attributeGroup: attributesArr }, targetObj) {
+  if (targetObj.scope !== RR_SCOPE.Specialization || normalizeName(targetObj.name) !== normalizeName(skillObj.name)) return false;
   const spec = targetObj.specialization;
-  if (getSpecializations(skill).some(value => normalizeName(value) === normalizeName(spec))) {
-    return attributeGroup.includes(specializationAttribute(skill, spec));
+  if (getSpecializations(skillObj).some(valueStr => normalizeName(valueStr) === normalizeName(spec))) {
+    return attributesArr.includes(specializationAttribute(skillObj, spec));
   }
-  const attributeCodes = specializationCode(skill.name, spec)?.split('/');
+  const attributeCodes = specializationCode(skillObj.name, spec)?.split('/');
   return attributeCodes
-    ? attributeGroup.some(attribute => attributeCodes.includes(attribute?.[0]))
-    : attributeGroup.includes(specializationAttribute(skill, spec));
+    ? attributesArr.some(attributeStr => attributeCodes.includes(attributeStr?.[0]))
+    : attributesArr.includes(specializationAttribute(skillObj, spec));
 }
 
-function markHTML({ skillName, scope, targets, position }, { isEditable, riskReductionObj }) {
+function markHTML({ skillName: skillNameStr, scope: scopeStr, targets: targetsArr, position: positionObj }, { isEditable, riskReductionObj }) {
   const { manualKeysSet, ampGrantsMap } = riskReductionObj;
-  const keys = targets.map(target => target.key);
-  const grants = keys.flatMap(key => ampGrantsMap.has(key) ? [ampGrantsMap.get(key)] : []);
-  const isActive = grants.length > 0 || keys.some(key => manualKeysSet.has(key));
-  if (!isEditable && position && !isActive) return '';
+  const keys = targetsArr.map(targetObj => targetObj.key);
+  const grants = keys.flatMap(keyStr => ampGrantsMap.has(keyStr) ? [ampGrantsMap.get(keyStr)] : []);
+  const isActive = grants.length > 0 || keys.some(keyStr => manualKeysSet.has(keyStr));
+  if (!isEditable && positionObj && !isActive) return '';
 
-  const classes = 'sheet-rr' + (position ? ' sheet-rr-positioned' : '');
-  const style = position ? ` style="left:${position.left}%;top:${position.top}%"` : '';
-  const label = `Risk Reduction for ${skillName} · ${scope}` +
-    (targets.length ? ` (${targets.map(target => target.label).join(', ')})` : '');
+  const classes = 'sheet-rr' + (positionObj ? ' sheet-rr-positioned' : '');
+  const style = positionObj ? ` style="left:${positionObj.left}%;top:${positionObj.top}%"` : '';
+  const label = `Risk Reduction for ${skillNameStr} · ${scopeStr}` +
+    (targetsArr.length ? ` (${targetsArr.map(targetObj => targetObj.label).join(', ')})` : '');
   if (!isEditable) {
     return `<span class="${classes}${isActive ? ' sheet-rr-marked' : ''}"${style} role="img" aria-label="${escapeHTML(label)} ${isActive ? 'marked' : 'unmarked'}"></span>`;
   }
 
   const title = grants.length
-    ? grants.map(({ target, sources }) => `${target.label}: ${[...sources].join(', ')}`).join(' · ')
+    ? grants.map(({ target: targetObj, sources: sourcesSet }) => `${targetObj.label}: ${[...sourcesSet].join(', ')}`).join(' · ')
     : keys.length ? label : 'Add a specialization to mark Risk Reduction for it.';
   const locked = grants.length || !keys.length ? ' aria-disabled="true"' : '';
   return `<button class="${classes}"${style} type="button" data-rr-keys="${escapeHTML(JSON.stringify(keys))}" aria-label="${escapeHTML(label)}" aria-pressed="${isActive}" title="${escapeHTML(title)}"${locked}></button>`;

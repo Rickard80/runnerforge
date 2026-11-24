@@ -1,37 +1,37 @@
 import { escapeHTML } from '../html.js';
 import { money } from '../../domain/model.js';
 
-function budgetRowHTML(label, amount) {
-  return `<div class="rowline"><span>${escapeHTML(label)}</span><b>${money(amount)}</b></div>`;
-}
-
 export class RunnerBudget extends HTMLElement {
-  set summary({ budget, limit, level, metatype }) {
-    const { remaining, spent, warnings } = budget;
-    const percentSpent = Math.min(100, spent / limit * 100);
+  set summary({ budget: budgetObj, limit, level: levelStr, metatype: metatypeStr }) {
+    const { remaining, spent, warnings } = budgetObj;
+    const percentSpent = Math.max(0, Math.min(100, spent / limit * 100));
     const warningItems = warnings.length
-      ? warnings.map(warning => `<li>${escapeHTML(warning)}</li>`).join('')
+      ? warnings.map(warningStr => `<li>${escapeHTML(warningStr)}</li>`).join('')
       : '<li>No budget or basic limit warnings.</li>';
 
     this.innerHTML = [
-      '<div class="balance">',
-        `<div class="eyebrow">${escapeHTML(level)} · ${escapeHTML(metatype)}</div>`,
+      '<div class="surface">',
+        `<div class="eyebrow">${escapeHTML(levelStr)} · ${escapeHTML(metatypeStr)}</div>`,
         '<div class="balance-title">Nuyen remaining</div>',
         `<div class="big ${remaining < 0 ? 'negative' : ''}">${money(remaining)}</div>`,
-        `<div class="meter"><div style="width:${percentSpent}%"></div></div>`,
+        `<div class="meter" aria-hidden="true"><div style="width:${percentSpent}%"></div></div>`,
         budgetRowHTML('Budget', limit),
         budgetRowHTML('Spent', spent),
-      '</div><div class="breakdown">',
-        budgetRowHTML('Attributes', budget.attr),
-        budgetRowHTML('Skills', budget.skills),
-        budgetRowHTML('Knowledge', budget.knowledge),
-        budgetRowHTML('Shadow Amps', budget.amps),
-        budgetRowHTML('Gear & spells', budget.items),
-      '</div><div class="warnings">',
+      '</div><div class="surface">',
+        budgetRowHTML('Attributes', budgetObj.attr),
+        budgetRowHTML('Skills', budgetObj.skills),
+        budgetRowHTML('Knowledge', budgetObj.knowledge),
+        budgetRowHTML('Shadow Amps', budgetObj.amps),
+        budgetRowHTML('Gear & spells', budgetObj.items),
+      '</div><div class="surface warnings">',
         `<h3>Rule checks · ${warnings.length}</h3><ul>${warningItems}</ul>`,
       '</div>'
     ].join('');
   }
+}
+
+function budgetRowHTML(labelStr, amount) {
+  return `<div class="rowline"><span>${escapeHTML(labelStr)}</span><b>${money(amount)}</b></div>`;
 }
 
 customElements.define('runner-budget', RunnerBudget);

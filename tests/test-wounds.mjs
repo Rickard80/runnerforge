@@ -35,8 +35,8 @@ const typeInput = { dataset: { path: 'woundSettings.alternateType' }, type: 'sel
 const attributeInput = { dataset: { path: 'woundSettings.alternateAttribute' }, type: 'select-one', value: 'Logic' };
 const alternateInput = { dataset: { path: 'woundSettings.alternateArmorIncrease' }, type: 'number', value: '6' };
 const vehicleBodyInput = { dataset: { path: 'woundSettings.vehicleBody' }, type: 'number', value: '6' };
-app.querySelectorAll = selector => selector === '[data-path]' ? [armorInput, typeInput, attributeInput, alternateInput, vehicleBodyInput] : [];
-app.querySelector = selector => ['#saved', '#import'].includes(selector) ? {} : null;
+app.querySelectorAll = selectorStr => selectorStr === '[data-path]' ? [armorInput, typeInput, attributeInput, alternateInput, vehicleBodyInput] : [];
+app.querySelector = selectorStr => ['#saved', '#import'].includes(selectorStr) ? {} : null;
 app.bind();
 armorInput.onchange();
 assert.equal(woundArmor(app.s).main.protection, 0);
@@ -45,17 +45,17 @@ armorInput.onchange();
 assert.equal(woundArmor(app.s).main.protection, 2);
 
 Object.assign(app.s.attributes, { Strength: 3, Willpower: 5, Logic: 4 });
-const numbersAt = y => [...sheetWoundsHTML(app.s).matchAll(new RegExp(`top:${y}%;[^>]+>(\\d+)<`, 'g'))].map(match => Number(match[1]));
+const numbersAt = top => [...sheetWoundsHTML(app.s).matchAll(new RegExp(`top:${top}%;[^>]+>(\\d+)<`, 'g'))].map(matchArr => Number(matchArr[1]));
 typeInput.onchange();
 assert.equal(app.s.woundSettings.alternateAttribute, '---');
 assert.equal(app.s.woundSettings.alternateArmorName, 'Vehicle');
 assert.doesNotMatch(app.woundsHTML(), /path="woundSettings.alternateArmorName"/);
 assert.match(app.woundsHTML(), /label="Body".*label="Armor"/);
-assert.deepEqual(numbersAt(94.5), []);
+assert.deepEqual(numbersAt(94), []);
 vehicleBodyInput.onchange();
 alternateInput.value = '2';
 alternateInput.onchange();
-assert.deepEqual(numbersAt(94.5), [8, 14, 20]);
+assert.deepEqual(numbersAt(94), [8, 14, 20]);
 vehicleBodyInput.value = '';
 vehicleBodyInput.onchange();
 attributeInput.onchange();
@@ -64,9 +64,9 @@ Object.assign(app.s.woundSettings, {
   alternateArmorName: 'Vehicle shell',
   alternateArmorIncrease: 2
 });
-assert.deepEqual(numbersAt(91), [3, 6, 9]);
-assert.deepEqual(numbersAt(92.7), [5, 8, 11]);
-assert.deepEqual(numbersAt(94.5), [6, 10, 14]);
+assert.deepEqual(numbersAt(90.5), [3, 6, 9]);
+assert.deepEqual(numbersAt(92.2), [5, 8, 11]);
+assert.deepEqual(numbersAt(94), [6, 10, 14]);
 assert.match(sheetWoundsHTML(app.s), /Travel coat.*Vehicle shell/);
 
 typeInput.value = 'Matrix';
@@ -75,19 +75,19 @@ assert.equal(app.s.woundSettings.alternateAttribute, '---');
 assert.equal(app.s.woundSettings.alternateArmorName, 'Firewall');
 assert.match(app.woundsHTML(), /path="woundSettings.alternateArmorName" value="Firewall"/);
 assert.match(app.woundsHTML(), /label="Firewall rating"/);
-assert.deepEqual(numbersAt(94.5), [2, 5, 8]);
+assert.deepEqual(numbersAt(94), [2, 5, 8]);
 alternateInput.value = '4';
 alternateInput.onchange();
-assert.deepEqual(numbersAt(94.5), [4, 7, 10]);
+assert.deepEqual(numbersAt(94), [4, 7, 10]);
 alternateInput.value = '';
 alternateInput.onchange();
-assert.deepEqual(numbersAt(94.5), []);
+assert.deepEqual(numbersAt(94), []);
 
 typeInput.value = 'Mental';
 typeInput.onchange();
 assert.equal(app.s.woundSettings.alternateAttribute, 'Willpower');
 assert.match(app.woundsHTML(), /path="woundSettings.alternateArmorName" value="Armor jacket/);
-assert.deepEqual(numbersAt(94.5), [8, 11, 14]);
+assert.deepEqual(numbersAt(94), [8, 11, 14]);
 
 const savedDamage = { ...app.s, woundSettings: { alternateType: 'Damage', alternateAttribute: 'Logic' } };
 await app.importJSON({ text: async () => JSON.stringify(savedDamage) });

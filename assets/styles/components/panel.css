@@ -1,0 +1,15 @@
+runner-panel {
+  display: block;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.panel {
+  margin-bottom: 18px;
+
+  @media (max-width: 600px) {
+    padding: 13px;
+  }
+}

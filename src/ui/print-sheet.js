@@ -1,121 +1,163 @@
 import { CATALOG } from '../domain/data/catalog.js';
 import { PERSONALITY_ENTRY_COUNT, PERSONALITY_ENTRY_LENGTH, PERSONALITY_LABELS } from '../domain/data/personality.js';
-import { ATTRIBUTES } from '../domain/data/rules.js';
+import { ATTRIBUTES, ENTRY_LIST, ITEM_TYPE, WOUND_SEVERITY, WOUND_TYPE } from '../domain/data/rules.js';
 import { calc, isFreeCommlink, money, woundArmor, woundThresholds } from '../domain/model.js';
 import { normalizeName } from '../domain/names.js';
 import { riskReductionState } from '../domain/risk-reduction.js';
 import { abbreviatedAttribute, getSpecializations, linkedAttributes, specializationAttribute } from '../domain/specializations.js';
-import { escapeHTML, inlineInputHTML } from './html.js';
+import { escapeHTML, FIELD_KIND, FIELD_PATH, inlineInputHTML } from './html.js';
 import { refreshSheetRiskReduction, sheetRiskReductionHTML } from './sheet-risk-reduction.js';
 
 const skillSheetRowLimit = 11;
-export const sheetItemType = { weapon: 'Weapon', spell: 'Spell', 'complex form': 'Complex Form' };
+export const sheetItemType = { [ITEM_TYPE.Weapon]: 'Weapon', [ITEM_TYPE.Spell]: 'Spell', [ITEM_TYPE.ComplexForm]: 'Complex Form' };
 let personalityTextMetrics;
 
-export function printCharacter(character) {
-  const w = window.open('', '_blank');
-  if (!w) return false;
-  w.document.write('<!doctype html><html><head><title>' + escapeHTML(character.name || 'Runner') +
-    '</title><link rel="stylesheet" href="' + new URL('../../assets/styles/risk-reduction.css', import.meta.url).href +
-    '"><style>body{margin:0} .sheet{width:210mm;height:273.5mm;position:relative;background-image:url("' +
-    new URL('../../assets/images/clean-sheet.webp', import.meta.url).href +
-    '");background-size:100% 100%;container-type:inline-size} .overlay{position:absolute;font-family:Arial,sans-serif;font-size:9px;color:#29140d;white-space:nowrap;overflow:hidden} .wound{position:absolute;border-radius:50%;background:#5d2e20}' +
-    '.sheet-notes{box-sizing:border-box;height:273.5mm;padding:14mm;overflow:hidden;font:11pt/1.5 Arial,sans-serif}' +
-    '.sheet-notes h2,.sheet-skills h2{margin:0 0 .5em} .sheet-notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}' +
-    '.sheet-skills{padding:14mm;font:11pt/1.4 Arial,sans-serif;color:#29140d}.sheet-skills table{width:100%;border-collapse:collapse}' +
-    '.sheet-skills :is(th,td){padding:2mm;border-bottom:1px solid #c5b1a3;text-align:left}.sheet-skills tr{break-inside:avoid}' +
-    '@page{size:210mm 273.85mm;margin:0}' +
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact} .sheet-notes,.sheet-skills{break-before:page}}</style></head><body>' +
-    printContentHTML(character) + '</body></html>');
-  w.onbeforeprint = () => fitPrintedNotes(w.document);
-  w.onload = () => setTimeout(() => w.print(), 350);
-  w.document.close();
+export class RunnerPrintSheet extends HTMLElement {
+  set character(characterObj) {
+    this.innerHTML = printContentHTML(characterObj, true);
+  }
+
+  fitPersonalityEntry(inputObj) {
+    inputObj.style.fontSize = `${personalityFontSize(inputObj.value, parseFloat(inputObj.style.width))}cqw`;
+  }
+
+  refreshRiskReduction(characterObj) {
+    refreshSheetRiskReduction(this, riskReductionState(characterObj));
+  }
+
+  refreshRatings(characterObj, inputObj, remaining) {
+    const path = inputObj.dataset.inlinePath;
+    const pages = sheetSkillPages(characterObj);
+    if (path.startsWith('attributes.')) this.refreshAttributeDependents(characterObj, pages);
+    if (path.startsWith(ENTRY_LIST.Skills + '.')) this.refreshSkillRatings(inputObj, pages);
+    this.querySelector('[data-sheet-balance]').textContent = 'Remaining: ' + money(remaining);
+  }
+
+  refreshAttributeDependents(characterObj, { first: firstArr, continued: continuedArr }) {
+    const options = { isEditable: true, riskReductionObj: riskReductionState(characterObj) };
+    this.querySelector('[data-sheet-skills]').innerHTML = sheetSkillRowsHTML(firstArr, options);
+    this.querySelector('[data-sheet-continuation]').innerHTML = sheetSkillsContinuedHTML(continuedArr, options);
+    this.querySelector('[data-sheet-thresholds]').innerHTML = sheetWoundThresholdsHTML(characterObj);
+  }
+
+  refreshSkillRatings(inputObj, { first: firstArr, continued: continuedArr }) {
+    const rows = [...firstArr, ...continuedArr];
+    this.querySelectorAll('[data-sheet-pool]').forEach((cellObj, index) => {
+      cellObj.textContent = rows[index].pool;
+    });
+    for (const rating of this.querySelectorAll(`[data-inline-path="${inputObj.dataset.inlinePath}"]`)) {
+      if (rating !== inputObj) rating.value = inputObj.valueAsNumber;
+    }
+  }
+}
+
+export function printCharacter(characterObj) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return false;
+  const stylesheets = ['print-sheet.css', 'risk-reduction.css', 'print-sheet-paper.css'].map(fileNameStr => {
+    const url = new URL(`../../assets/styles/components/${fileNameStr}`, import.meta.url);
+    return `<link rel="stylesheet" href="${escapeHTML(url.href)}">`;
+  }).join('');
+  printWindow.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <title>${escapeHTML(characterObj.name || 'Runner')}</title>${stylesheets}</head>
+    <body>${printContentHTML(characterObj)}</body></html>`);
+  printWindow.onbeforeprint = () => fitPrintedNotes(printWindow.document);
+  printWindow.onload = () => setTimeout(() => printWindow.print(), 350);
+  printWindow.document.close();
   return true;
 }
-function fitPrintedNotes(doc) {
-  const page = doc.querySelector('.sheet-notes');
+function fitPrintedNotes(documentObj) {
+  const page = documentObj.querySelector('.sheet-notes');
   if (!page) return;
   const content = page.firstElementChild;
   content.style.zoom = '';
-  const style = doc.defaultView.getComputedStyle(page);
+  const style = documentObj.defaultView.getComputedStyle(page);
   const availableHeight = page.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
   const contentHeight = content.getBoundingClientRect().height;
   if (contentHeight > availableHeight) {
     content.style.zoom = (availableHeight - 1) / contentHeight;
   }
 }
-export function printContentHTML(character, editable = false) {
-  const { first, continued } = sheetSkillPages(character);
-  const options = { isEditable: editable, riskReductionObj: riskReductionState(character) };
+export function printContentHTML(characterObj, isEditable = false) {
+  const { first, continued } = sheetSkillPages(characterObj);
+  const options = { isEditable, riskReductionObj: riskReductionState(characterObj) };
   const continuation = sheetSkillsContinuedHTML(continued, options);
-  return sheetHTML(character, first, options) +
-    (editable ? `<div data-sheet-continuation>${continuation}</div>` : continuation) + sheetNotesHTML(character.notes);
+  return sheetHTML(characterObj, first, options) +
+    (isEditable ? `<div data-sheet-continuation>${continuation}</div>` : continuation) + sheetNotesHTML(characterObj.notes);
 }
-function sheetPosition({ left, top, width, height = 1.65, fontSize = 1.04, textAlign = 'left', transform }) {
-  const transformStyle = transform ? 'transform: ' + transform : '';
-  return `left:${left}%;top:${top}%;width:${width}%;height:${height}%;font-size:${fontSize}cqw;text-align:${textAlign};${transformStyle}`;
-}
-
-function sheetOverlayHTML(value, { attributes = '', ...position }) {
-  return `<div class="overlay" style="${sheetPosition(position)}"${attributes}>${escapeHTML(value)}</div>`;
+function sheetPosition({ left, top, width, height = 1.65, fontSize = 1.04, textAlign: textAlignStr = 'left', transform: transformStr }) {
+  const transformStyle = transformStr ? 'transform: ' + transformStr : '';
+  return `left:${left}%;top:${top}%;width:${width}%;height:${height}%;font-size:${fontSize}cqw;text-align:${textAlignStr};${transformStyle}`;
 }
 
-function sheetFieldHTML(value, field, position) {
-  if (!field) return sheetOverlayHTML(value, position);
-  return inlineInputHTML(value, field, ` class="overlay sheet-input" style="${sheetPosition(position)}"`);
+function sheetOverlayHTML(value, { attributes: attributesStr = '', ...positionObj }) {
+  return `<div class="overlay" style="${sheetPosition(positionObj)}"${attributesStr}>${escapeHTML(value)}</div>`;
+}
+
+function sheetFieldHTML(value, fieldObj, positionObj) {
+  if (!fieldObj) return sheetOverlayHTML(value, positionObj);
+  return inlineInputHTML(value, fieldObj, ` class="overlay sheet-input" style="${sheetPosition(positionObj)}"`);
 }
 function sheetWoundHTML({ left, top }) {
-  return `<span class="wound" style="left:${left}%;top:${top}%;width:1.28%;height:.97%"></span>`;
+  return `<span class="wound" style="left:${left}%;top:${top}%"></span>`;
 }
-function sheetPortraitHTML(portrait) {
-  const mask = escapeHTML(new URL('../../assets/images/avatar-mask.webp', import.meta.url).href);
-  // Align the full square mask with the painted opening on the sheet.
-  const placement = 'position:absolute;left:64.8%;top:8.8%;width:32.8%;aspect-ratio:1;object-fit:cover';
-  return `<img class="portrait" src="${escapeHTML(portrait)}" alt="Character portrait" style="${placement};mask:url(&quot;${mask}&quot;) center / 100% 100% no-repeat;mask-mode:luminance">`;
+function sheetPortraitHTML(portraitStr) {
+  return `<img class="portrait" src="${escapeHTML(portraitStr)}" alt="Character portrait">`;
 }
-function sheetNotesHTML(notes) {
-  const text = String(notes || '');
+function sheetNotesHTML(notesStr) {
+  const text = String(notesStr || '');
   if (!text.trim()) return '';
   return `<section class="sheet-notes"><div><h2>Background / notes</h2><p>${escapeHTML(text)}</p></div></section>`;
 }
-export function sheetSkillPages(character) {
+export function sheetSkillPages(characterObj) {
   const first = [];
   const continued = [];
-  character.skills.forEach((skill, skillIndex) => {
-    const attributes = linkedAttributes(skill);
-    const specializations = getSpecializations(skill).filter(Boolean).map(value => ({
-      value, attribute: specializationAttribute(skill, value)
-    }));
-    const ratings = attributes.map(attribute => +character.attributes[attribute] || 0);
-    const groups = ratings.every(rating => rating === ratings[0]) ? [attributes] : attributes.map(attribute => [attribute]);
-    const page = continued.length || first.length + groups.length > skillSheetRowLimit ? continued : first;
-    groups.forEach(group => {
-      const [attribute] = group;
-      const attributeRating = +character.attributes[attribute] || 0;
-      const rowSpecializations = specializations.filter(spec => group.includes(spec.attribute));
-      const specs = rowSpecializations
-        .map(spec => group.length > 1 ? `${spec.value} [${abbreviatedAttribute(spec.attribute)}]` : spec.value).join(', ');
-      page.push({
-        skill, skillIndex, attribute, attributeRating, specs, attributeGroup: group, specializations: rowSpecializations,
-        label: specs ? `${skill.name} (${specs})` : skill.name,
-        attributeLabel: group.map(abbreviatedAttribute).join(', '),
-        pool: ((+skill.rating || 0) + attributeRating) + (specs.length ? ' (+2)' : '')
-      });
-    });
+  characterObj.skills.forEach((skillObj, skillIndex) => {
+    const rowsArr = rowsForSkill(characterObj.attributes, skillObj, skillIndex);
+    const page = continued.length || first.length + rowsArr.length > skillSheetRowLimit ? continued : first;
+    page.push(...rowsArr);
   });
   return { first, continued };
 }
-function skillRatingField({ skillIndex, label, attributeLabel }) {
-  return { path: `skills.${skillIndex}.rating`, label: `${label} rating (${attributeLabel})`, type: 'number' };
+
+function rowsForSkill(attributesObj, skillObj, skillIndex) {
+  const attributesArr = linkedAttributes(skillObj);
+  const specializationsArr = getSpecializations(skillObj).filter(Boolean).map(valueStr => ({
+    value: valueStr, attribute: specializationAttribute(skillObj, valueStr)
+  }));
+  const ratingsArr = attributesArr.map(attributeStr => +attributesObj[attributeStr] || 0);
+  const hasEqualRatings = ratingsArr.every(rating => rating === ratingsArr[0]);
+  const groups = hasEqualRatings ? [attributesArr] : attributesArr.map(attributeStr => [attributeStr]);
+  return groups.map((groupArr, index) => skillSheetRow({
+    skillObj, skillIndex, groupArr, specializationsArr, attributeRating: ratingsArr[index]
+  }));
 }
 
-function sheetSkillsContinuedHTML(rows, optionsObj) {
-  if (!rows.length) return '';
+function skillSheetRow({ skillObj, skillIndex, groupArr, specializationsArr, attributeRating }) {
+  const [attribute] = groupArr;
+  const rowSpecializations = specializationsArr.filter(specObj => groupArr.includes(specObj.attribute));
+  const specs = rowSpecializations
+    .map(specObj => groupArr.length > 1 ? `${specObj.value} [${abbreviatedAttribute(specObj.attribute)}]` : specObj.value)
+    .join(', ');
+  return {
+    skill: skillObj, skillIndex, attribute, attributeRating, specs, attributeGroup: groupArr, specializations: rowSpecializations,
+    label: specs ? `${skillObj.name} (${specs})` : skillObj.name,
+    attributeLabel: groupArr.map(abbreviatedAttribute).join(', '),
+    pool: ((+skillObj.rating || 0) + attributeRating) + (specs.length ? ' (+2)' : '')
+  };
+}
+
+function skillRatingField({ skillIndex, label: labelStr, attributeLabel: attributeLabelStr }) {
+  return { path: `${ENTRY_LIST.Skills}.${skillIndex}.rating`, label: `${labelStr} rating (${attributeLabelStr})`, type: FIELD_KIND.Number };
+}
+
+function sheetSkillsContinuedHTML(rowsArr, optionsObj) {
+  if (!rowsArr.length) return '';
   const { isEditable } = optionsObj;
-  const entries = rows.map(row => {
-    const { skill, label, attributeLabel, pool } = row;
-    const rating = isEditable ? inlineInputHTML(skill.rating, skillRatingField(row), ' class="sheet-rating"') : escapeHTML(skill.rating);
-    const riskReduction = sheetRiskReductionHTML(row, optionsObj);
+  const entries = rowsArr.map(rowObj => {
+    const { skill, label, attributeLabel, pool } = rowObj;
+    const rating = isEditable ? inlineInputHTML(skill.rating, skillRatingField(rowObj), ' class="sheet-rating"') : escapeHTML(skill.rating);
+    const riskReduction = sheetRiskReductionHTML(rowObj, optionsObj);
     return `<tr><th scope="row">${escapeHTML(label)}</th><td>${rating}</td><td>${escapeHTML(attributeLabel)}</td><td${isEditable ? ' data-sheet-pool' : ''}>${pool}</td><td><div class="sheet-rr-group">${riskReduction}</div></td></tr>`;
   });
   return '<section class="sheet-skills"><h2>Skills continued</h2><table>' +
@@ -123,17 +165,17 @@ function sheetSkillsContinuedHTML(rows, optionsObj) {
     '<th scope="col">Dice pool</th><th scope="col" title="Risk Reduction: attribute, skill, specialization">RR</th></tr></thead>' +
     `<tbody>${entries.join('')}</tbody></table></section>`;
 }
-function sheetSkillsHTML(rows, optionsObj) {
-  const skills = sheetSkillRowsHTML(rows, optionsObj);
+function sheetSkillsHTML(rowsArr, optionsObj) {
+  const skills = sheetSkillRowsHTML(rowsArr, optionsObj);
   return optionsObj.isEditable ? `<div data-sheet-skills>${skills}</div>` : skills;
 }
 
-function sheetSkillRowsHTML(rows, optionsObj) {
+function sheetSkillRowsHTML(rowsArr, optionsObj) {
   const { isEditable } = optionsObj;
-  return rows.map((row, index) => {
-    const { skill, label, attributeLabel, pool } = row;
+  return rowsArr.map((rowObj, index) => {
+    const { skill, label, attributeLabel, pool } = rowObj;
     const top = 18.75 + index * 2.16;
-    const ratingField = isEditable ? skillRatingField(row) : null;
+    const ratingField = isEditable ? skillRatingField(rowObj) : null;
     return sheetOverlayHTML(label, { left: 5.3, top, width: 24.8, height: 1.7, fontSize: 1.2 }) +
       sheetFieldHTML(skill.rating, ratingField, {
         left: 31.2, top, width: 5.9, height: 1.7, fontSize: 1.2, textAlign: 'center'
@@ -143,26 +185,27 @@ function sheetSkillRowsHTML(rows, optionsObj) {
         left: 46, top, width: 5, height: 1.7, fontSize: 1.2, textAlign: 'center',
         attributes: isEditable ? ' data-sheet-pool' : ''
       }) +
-      sheetRiskReductionHTML(row, optionsObj, 19.78 + index * 2.16);
+      sheetRiskReductionHTML(rowObj, optionsObj, 19.78 + index * 2.16);
   }).join('');
 }
 
-function personalityFontSize(value, width) {
+function personalityFontSize(valueStr, width) {
   const standardSize = 1.2;
-  if (!value || value.length > PERSONALITY_ENTRY_LENGTH || typeof document === 'undefined') return standardSize;
+  if (!valueStr || valueStr.length > PERSONALITY_ENTRY_LENGTH || typeof document === 'undefined') return standardSize;
   personalityTextMetrics ??= document.createElement('canvas').getContext('2d');
   if (!personalityTextMetrics) return standardSize;
   personalityTextMetrics.font = '100px Arial, sans-serif';
-  const textWidth = personalityTextMetrics.measureText(value).width / 100;
+  const textWidth = personalityTextMetrics.measureText(valueStr).width / 100;
   return Math.min(standardSize, (width - .25) / textWidth);
 }
 
-function sheetPersonalityEntriesHTML(s, key, editable, { top, left, rowSpacing, width, maxLines, transform }) {
-  const values = s[key];
-  const count = Math.min(maxLines, editable ? Math.max(values.length, PERSONALITY_ENTRY_COUNT) : values.length);
+function sheetPersonalityEntriesHTML({ characterObj, keyStr, isEditable, positionObj }) {
+  const { top, left, rowSpacing, width, maxLines, transform } = positionObj;
+  const values = characterObj[keyStr];
+  const count = Math.min(maxLines, isEditable ? Math.max(values.length, PERSONALITY_ENTRY_COUNT) : values.length);
   return Array.from({ length: count }, (_, index) => {
-    const field = editable ? {
-      path: `${key}.${index}`, label: `${PERSONALITY_LABELS[key]} ${index + 1}`, maxLength: PERSONALITY_ENTRY_LENGTH
+    const field = isEditable ? {
+      path: `${keyStr}.${index}`, label: `${PERSONALITY_LABELS[keyStr]} ${index + 1}`, maxLength: PERSONALITY_ENTRY_LENGTH
     } : null;
     const value = values[index];
     return sheetFieldHTML(value, field, {
@@ -172,115 +215,115 @@ function sheetPersonalityEntriesHTML(s, key, editable, { top, left, rowSpacing, 
 }
 
 // Coordinates measured against correctedAlignment.webp (1571 × 2048), scaled as percentages.
-function sheetHTML(character, skillRows, optionsObj) {
-  const editable = optionsObj.isEditable;
+function sheetHTML(characterObj, skillRowsArr, optionsObj) {
+  const { isEditable } = optionsObj;
   let html = '<div class="sheet">';
-  html += sheetNameHTML(character.name, editable);
-  html += sheetAttributesHTML(character, editable);
-  html += sheetSkillsHTML(skillRows, optionsObj);
-  html += sheetAmpsHTML(character.amps);
-  html += sheetKnowledgeAndEssenceHTML(character);
-  html += sheetWeaponsAndSpellsHTML(character.items);
-  html += sheetGearHTML(character.items);
-  html += sheetBalanceHTML(character, editable);
-  html += sheetWoundsHTML(character, editable);
-  html += sheetPersonalityHTML(character, editable);
-  html += sheetWoundMarkersHTML(character);
-  if (character.portrait) html += sheetPortraitHTML(character.portrait);
+  html += sheetNameHTML(characterObj.name, isEditable);
+  html += sheetAttributesHTML(characterObj, isEditable);
+  html += sheetSkillsHTML(skillRowsArr, optionsObj);
+  html += sheetAmpsHTML(characterObj.amps);
+  html += sheetKnowledgeAndEssenceHTML(characterObj);
+  html += sheetWeaponsAndSpellsHTML(characterObj.items);
+  html += sheetGearHTML(characterObj.items);
+  html += sheetBalanceHTML(characterObj, isEditable);
+  html += sheetWoundsHTML(characterObj, isEditable);
+  html += sheetPersonalityHTML(characterObj, isEditable);
+  html += sheetWoundMarkersHTML(characterObj);
+  if (characterObj.portrait) html += sheetPortraitHTML(characterObj.portrait);
   return html + '</div>';
 }
 
-function sheetLinesHTML(values, { left, top, rowSpacing, width, maxLines, fontSize }) {
-  return values.slice(0, maxLines).map((value, index) => sheetOverlayHTML(value, {
+function sheetLinesHTML(valuesArr, { left, top, rowSpacing, width, maxLines, fontSize }) {
+  return valuesArr.slice(0, maxLines).map((value, index) => sheetOverlayHTML(value, {
     left, top: top + index * rowSpacing, width, height: 1.7, fontSize
   })).join('');
 }
 
 function sheetNameHTML(nameStr, isEditable) {
-  const field = isEditable ? { path: 'name', label: 'Street name' } : null;
+  const field = isEditable ? { path: FIELD_PATH.Name, label: 'Street name' } : null;
   return sheetFieldHTML(nameStr, field, { left: 21, top: 4, width: 32, height: 3, fontSize: 2.5, textAlign: 'center' });
 }
 
-function sheetAttributesHTML({ attributes, edge }, editable) {
+function sheetAttributesHTML({ attributes: attributesObj, edge }, isEditable) {
   const attributePositions = [6.1, 15.3, 24.3, 33.1, 42.5, 51.4];
-  return [...ATTRIBUTES, 'Edge'].map((label, index) => {
-    const isEdge = label === 'Edge';
-    const field = editable ? { path: isEdge ? 'edge' : `attributes.${label}`, label, type: 'number' } : null;
-    return sheetFieldHTML(isEdge ? edge : attributes[label], field, {
-      left: attributePositions[index], top: editable ? 10.6 : 12, width: 6.1, height: 4.5, fontSize: 2, textAlign: 'center'
+  return [...ATTRIBUTES, 'Edge'].map((labelStr, index) => {
+    const isEdge = labelStr === 'Edge';
+    const field = isEditable ? { path: isEdge ? FIELD_PATH.Edge : `attributes.${labelStr}`, label: labelStr, type: FIELD_KIND.Number } : null;
+    return sheetFieldHTML(isEdge ? edge : attributesObj[labelStr], field, {
+      left: attributePositions[index], top: isEditable ? 10.6 : 12, width: 6.1, height: 4.5, fontSize: 2, textAlign: 'center'
     });
   }).join('');
 }
 
-function sheetAmpsHTML(amps) {
-  const labels = amps.map(({ name, rating, notes }) => `${name} (${rating})${notes ? ' ' + notes : ''}`);
+function sheetAmpsHTML(ampsArr) {
+  const labels = ampsArr.map(({ name: nameStr, rating, notes: notesStr }) => `${nameStr} (${rating})${notesStr ? ' ' + notesStr : ''}`);
   return sheetLinesHTML(labels, {
     left: 5.3, top: 45.5, rowSpacing: 2.17, width: 57, maxLines: 11, fontSize: 1.2
   });
 }
 
-function sheetKnowledgeAndEssenceHTML({ knowledge, essence }) {
-  const knowledgeHTML = sheetOverlayHTML(knowledge.join(', '), {
+function sheetKnowledgeAndEssenceHTML({ knowledge: knowledgeArr, essence: essenceStr }) {
+  const knowledgeHTML = sheetOverlayHTML(knowledgeArr.join(', '), {
     left: 5.3, top: 72.2, width: 47, height: 2, fontSize: 1.2
   });
-  const essenceHTML = sheetOverlayHTML(essence, {
+  const essenceHTML = sheetOverlayHTML(essenceStr, {
     left: 51.6, top: 72.2, width: 7, height: 2, fontSize: 1.2, textAlign: 'center'
   });
   return knowledgeHTML + essenceHTML;
 }
 
-function sheetWeaponsAndSpellsHTML(items) {
-  const entries = items.filter(item => Object.hasOwn(sheetItemType, item.type));
-  return entries.slice(0, 4).map(({ name, type, description }, index) => {
-    const catalogGroup = CATALOG[type]?.find(entry => normalizeName(entry.name) === normalizeName(name))?.group;
-    const nameHTML = sheetOverlayHTML(name + ', ' + (catalogGroup || description), {
+function sheetWeaponsAndSpellsHTML(itemsArr) {
+  const entries = itemsArr.filter(itemObj => Object.hasOwn(sheetItemType, itemObj.type));
+  return entries.slice(0, 4).map(({ name: nameStr, type: typeStr, description: descriptionStr }, index) => {
+    const catalogGroup = CATALOG[typeStr]?.find(entryObj => normalizeName(entryObj.name) === normalizeName(nameStr))?.group;
+    const nameHTML = sheetOverlayHTML(nameStr + ', ' + (catalogGroup || descriptionStr), {
       left: 5.3, top: 77.5 + index * 2.16, width: 43, height: 1.7, fontSize: 1.2
     });
-    const typeHTML = sheetOverlayHTML(sheetItemType[type], {
+    const typeHTML = sheetOverlayHTML(sheetItemType[typeStr], {
       left: 49.7, top: 77.7 + index * 2.16, width: 9, height: 1.7, fontSize: 1, textAlign: 'center'
     });
     return nameHTML + typeHTML;
   }).join('');
 }
 
-function sheetGearHTML(items) {
-  const gear = items.filter(({ type, name }) => type === 'armor' || (type === 'equipment' && !isFreeCommlink(name)));
-  const labels = gear.map(({ name, cost }) => name + ' ' + money(cost));
+function sheetGearHTML(itemsArr) {
+  const gear = itemsArr.filter(({ type: typeStr, name: nameStr }) => typeStr === ITEM_TYPE.Armor || (typeStr === ITEM_TYPE.Equipment && !isFreeCommlink(nameStr)));
+  const labels = gear.map(({ name: nameStr, cost }) => nameStr + ' ' + money(cost));
   return sheetLinesHTML(labels, {
     left: 5.3, top: 88.9, rowSpacing: 1.76, width: 20, maxLines: 4, fontSize: 1
   });
 }
 
-function sheetBalanceHTML(character, editable) {
-  const { remaining } = calc(character);
+function sheetBalanceHTML(characterObj, isEditable) {
+  const { remaining } = calc(characterObj);
   return sheetOverlayHTML('Remaining: ' + money(remaining), {
     left: 7, top: 96.05, width: 22, height: 1.3, fontSize: 1,
-    attributes: editable ? ' data-sheet-balance' : ''
+    attributes: isEditable ? ' data-sheet-balance' : ''
   });
 }
 
-function sheetPersonalityHTML(character, editable) {
-  const keywords = sheetPersonalityEntriesHTML(character, 'keywords', editable, {
+function sheetPersonalityHTML(characterObj, isEditable) {
+  const keywords = sheetPersonalityEntriesHTML({ characterObj, keyStr: 'keywords', isEditable, positionObj: {
     top: 37.75, left: 67.4, rowSpacing: 2.16, width: 28.5, maxLines: 5, transform: 'rotateZ(-1.1deg)'
-  });
-  const dispositions = sheetPersonalityEntriesHTML(character, 'dispositions', editable, {
+  } });
+  const dispositions = sheetPersonalityEntriesHTML({ characterObj, keyStr: 'dispositions', isEditable, positionObj: {
     top: 54.15, left: 67.6, rowSpacing: 2.12, width: 28.5, maxLines: 4, transform: 'rotateZ(2deg)'
-  });
-  const cues = sheetPersonalityEntriesHTML(character, 'cues', editable, {
+  } });
+  const cues = sheetPersonalityEntriesHTML({ characterObj, keyStr: 'cues', isEditable, positionObj: {
     top: 68.8, left: 67.2, rowSpacing: 2.84, width: 28.5, maxLines: 5, transform: 'rotateZ(-1deg)'
-  });
+  } });
   return keywords + dispositions + cues;
 }
 
-function sheetWoundMarkersHTML(character) {
+function sheetWoundMarkersHTML(characterObj) {
   let html = '';
-  const woundTracks = [character.wounds || {}, character.mentalWounds || {}];
-  woundTracks.forEach((values, row) => {
+  const woundTracks = [characterObj.wounds || {}, characterObj.mentalWounds || {}];
+  woundTracks.forEach((woundsObj, rowObj) => {
     let index = 0;
-    for (const key of ['light', 'serious', 'incapacitated']) {
-      const count = Math.max(0, Math.min(5, +values[key] || 0));
+    for (const key of [WOUND_SEVERITY.Light, WOUND_SEVERITY.Serious, WOUND_SEVERITY.Incapacitated]) {
+      const count = Math.max(0, Math.min(5, +woundsObj[key] || 0));
       for (let i = 0; i < count; i++) {
-        html += sheetWoundHTML({ left: 44.3 + index * 2.08, top: 89.88 + row * 1.2 });
+        html += sheetWoundHTML({ left: 44.3 + index * 2.08, top: 89.88 + rowObj * 1.2 });
         index++;
       }
     }
@@ -288,70 +331,36 @@ function sheetWoundMarkersHTML(character) {
   return html;
 }
 
-function sheetWoundThresholdsHTML(s) {
-  const { attributes, woundSettings } = s;
-  const { main, alternate } = woundArmor(s);
+function sheetWoundThresholdsHTML(characterObj) {
+  const { attributes, woundSettings } = characterObj;
+  const { main, alternate } = woundArmor(characterObj);
   const { alternateType, alternateAttribute, alternateArmorIncrease, vehicleBody } = woundSettings;
-  const vehicle = alternateType === 'Vehicle';
+  const vehicle = alternateType === WOUND_TYPE.Vehicle;
   const attribute = attributes[alternateAttribute];
   const resistance = vehicle ? vehicleBody ?? attribute :
-    alternateType === 'Matrix' ? attribute ?? alternateArmorIncrease : attribute;
+    alternateType === WOUND_TYPE.Matrix ? attribute ?? alternateArmorIncrease : attribute;
   const protection = vehicle ? alternateArmorIncrease ?? 0 : alternate.protection;
   const rows = [
-    [90.5, woundThresholds('Physical', attributes.Strength)],
-    [92.2, woundThresholds('Physical', attributes.Strength, main.protection)],
-    [95.8, woundThresholds('Mental', attributes.Willpower)]
+    [90.5, woundThresholds(WOUND_TYPE.Physical, attributes.Strength)],
+    [92.2, woundThresholds(WOUND_TYPE.Physical, attributes.Strength, main.protection)],
+    [95.8, woundThresholds(WOUND_TYPE.Mental, attributes.Willpower)]
   ];
   if (resistance != null) rows.push([94, woundThresholds(alternateType, resistance, protection)]);
   const columns = [44.6, 50.1, 54.6];
-  return rows.map(([top, thresholds]) => thresholds.map((value, index) =>
+  return rows.map(([top, thresholdsArr]) => thresholdsArr.map((value, index) =>
     sheetOverlayHTML(value, { left: columns[index], top, width: 4.4, height: 1.4, fontSize: 1, textAlign: 'center' })
   ).join('')).join('');
 }
 
-export function sheetWoundsHTML(s, editable = false) {
-  const { main, alternate } = woundArmor(s);
-  const thresholds = sheetWoundThresholdsHTML(s);
-  const mainField = editable ? { path: 'woundSettings.mainArmorName', label: 'Main armor name' } : null;
-  const alternateField = editable ? { path: 'woundSettings.alternateArmorName', label: 'Alternate armor name' } : null;
-  let html = editable ? `<div data-sheet-thresholds>${thresholds}</div>` : thresholds;
+export function sheetWoundsHTML(characterObj, isEditable = false) {
+  const { main, alternate } = woundArmor(characterObj);
+  const thresholds = sheetWoundThresholdsHTML(characterObj);
+  const mainField = isEditable ? { path: FIELD_PATH.MainArmorName, label: 'Main armor name' } : null;
+  const alternateField = isEditable ? { path: FIELD_PATH.AlternateArmorName, label: 'Alternate armor name' } : null;
+  let html = isEditable ? `<div data-sheet-thresholds>${thresholds}</div>` : thresholds;
   html += sheetFieldHTML(main.name, mainField, { left: 31.2, top: 92.3, width: 12.6, height: 1.5, fontSize: 1 });
   html += sheetFieldHTML(alternate.name, alternateField, { left: 33.7, top: 94.15, width: 10.1, height: 1.5, fontSize: 1 });
   return html;
-}
-
-export class RunnerPrintSheet extends HTMLElement {
-  set character(character) {
-    this.innerHTML = printContentHTML(character, true);
-  }
-
-  fitPersonalityEntry(input) {
-    input.style.fontSize = `${personalityFontSize(input.value, parseFloat(input.style.width))}cqw`;
-  }
-
-  refreshRiskReduction(characterObj) {
-    refreshSheetRiskReduction(this, riskReductionState(characterObj));
-  }
-
-  refreshRatings(character, input, remaining) {
-    const path = input.dataset.inlinePath;
-    const { first, continued } = sheetSkillPages(character);
-    if (path.startsWith('attributes.')) {
-      const options = { isEditable: true, riskReductionObj: riskReductionState(character) };
-      this.querySelector('[data-sheet-skills]').innerHTML = sheetSkillRowsHTML(first, options);
-      this.querySelector('[data-sheet-continuation]').innerHTML = sheetSkillsContinuedHTML(continued, options);
-      this.querySelector('[data-sheet-thresholds]').innerHTML = sheetWoundThresholdsHTML(character);
-    } else if (path.startsWith('skills.')) {
-      const rows = [...first, ...continued];
-      this.querySelectorAll('[data-sheet-pool]').forEach((cell, index) => {
-        cell.textContent = rows[index].pool;
-      });
-      for (const rating of this.querySelectorAll(`[data-inline-path="${path}"]`)) {
-        if (rating !== input) rating.value = input.valueAsNumber;
-      }
-    }
-    this.querySelector('[data-sheet-balance]').textContent = 'Remaining: ' + money(remaining);
-  }
 }
 
 customElements.define('runner-print-sheet', RunnerPrintSheet);

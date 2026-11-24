@@ -1,20 +1,20 @@
 import { AMP_PROFILES } from './data/amp-profiles.js';
 import { ATTRIBUTES } from './data/rules.js';
 import { normalizeName } from './names.js';
-import { getSpecializations, SKILLS, specializationOptions, TASKING } from './specializations.js';
+import { SKILL, getSpecializations, SKILLS, specializationOptions, TASKING } from './specializations.js';
 
 export const RR_SCOPE = Object.freeze({ Attribute: 'attribute', Skill: 'skill', Specialization: 'specialization' });
 
 // Training also includes non-RR benefits on some profiles and omits broader RR on others.
 const extraSkillRR = {
-  'Vocal Control': 'Influence',
-  'Morphological and Vocal Control': 'Influence',
-  'Armanté Suit or Dress': 'Influence',
-  'MCT 260': 'Cracking',
-  'Shiawase Cyber-6': 'Cracking',
-  'Fairlight Excalibur': 'Cracking',
-  'Ares SharpShooter Cybernetic Eyes': 'Ranged Weapons',
-  'Digitigrade Cyberlegs': 'Athletics'
+  'Vocal Control': SKILL.Influence,
+  'Morphological and Vocal Control': SKILL.Influence,
+  'Armanté Suit or Dress': SKILL.Influence,
+  'MCT 260': SKILL.Cracking,
+  'Shiawase Cyber-6': SKILL.Cracking,
+  'Fairlight Excalibur': SKILL.Cracking,
+  'Ares SharpShooter Cybernetic Eyes': SKILL.RangedWeapons,
+  'Digitigrade Cyberlegs': SKILL.Athletics
 };
 const hasRiskReduction = /\b(?:RR|risk reduction)\b/i;
 
@@ -34,8 +34,8 @@ export function riskReductionState(characterObj) {
 
 export function toggleRiskReduction(characterObj, keysArr) {
   const { manualKeysSet, ampGrantsMap } = riskReductionState(characterObj);
-  if (!keysArr.length || keysArr.some(key => ampGrantsMap.has(key))) return;
-  const activeKey = keysArr.find(key => manualKeysSet.has(key));
+  if (!keysArr.length || keysArr.some(keyStr => ampGrantsMap.has(keyStr))) return;
+  const activeKey = keysArr.find(keyStr => manualKeysSet.has(keyStr));
   if (activeKey) manualKeysSet.delete(activeKey);
   else manualKeysSet.add(keysArr[0]);
   characterObj.riskReduction = [...manualKeysSet];
@@ -55,7 +55,7 @@ function ampTargets(ampObj, skillsArr) {
     return explicitTargets(effect, skillsArr);
   }
 
-  const training = ampObj.name === 'Evo EyeDrone Cybernetic Eyes' ? [['Perception', 'Physical']] : profile.training ?? [];
+  const training = ampObj.name === 'Evo EyeDrone Cybernetic Eyes' ? [[SKILL.Perception, 'Physical']] : profile.training ?? [];
   const targets = training.flatMap(trainingTargets);
   if (Object.hasOwn(extraSkillRR, ampObj.name)) {
     targets.push(riskReductionTarget(RR_SCOPE.Skill, extraSkillRR[ampObj.name]));
@@ -67,36 +67,36 @@ function ampTargets(ampObj, skillsArr) {
   return targets;
 }
 
-function trainingTargets([skill, ...specializations]) {
-  return specializations.length
-    ? specializations.map(specialization => riskReductionTarget(RR_SCOPE.Specialization, skill, specialization))
-    : [riskReductionTarget(RR_SCOPE.Skill, skill)];
+function trainingTargets([skillNameStr, ...specializationsArr]) {
+  return specializationsArr.length
+    ? specializationsArr.map(specializationStr => riskReductionTarget(RR_SCOPE.Specialization, skillNameStr, specializationStr))
+    : [riskReductionTarget(RR_SCOPE.Skill, skillNameStr)];
 }
 
 function selectedTargets(profileObj, selectedStr) {
   const options = profileObj.trainingChoices?.flatMap(trainingTargets) ?? [];
   if (/chosen attribute/i.test(profileObj.effect)) {
-    options.push(...ATTRIBUTES.map(attribute => riskReductionTarget(RR_SCOPE.Attribute, attribute)));
+    options.push(...ATTRIBUTES.map(attributeStr => riskReductionTarget(RR_SCOPE.Attribute, attributeStr)));
   }
   const selected = new Set(selectedStr.split(',').map(normalizeName));
-  return options.filter(target => selected.has(normalizeName(target.label))).slice(0, profileObj.chooseTraining ?? 1);
+  return options.filter(targetObj => selected.has(normalizeName(targetObj.label))).slice(0, profileObj.chooseTraining ?? 1);
 }
 
 function explicitTargets(effectStr, skillsArr) {
   const grants = [...effectStr.matchAll(/\b(?:RR|risk reduction)\s+(?:[1-9]\d*\s+)?(?:on|for)\s+([^.;\n]+)/gi)];
-  const skillNames = new Set([...SKILLS, TASKING, ...skillsArr.map(skill => skill.name)]);
-  return grants.flatMap(([, description]) => {
-    const target = normalizeName(description).replace(/-based\b/g, '').replace(/\s+tests?\b.*$/, '');
-    const attribute = ATTRIBUTES.find(name => normalizeName(name) === target);
+  const skillNames = new Set([...SKILLS, TASKING, ...skillsArr.map(skillObj => skillObj.name)]);
+  return grants.flatMap(([, descriptionStr]) => {
+    const target = normalizeName(descriptionStr).replace(/-based\b/g, '').replace(/\s+tests?\b.*$/, '');
+    const attribute = ATTRIBUTES.find(nameStr => normalizeName(nameStr) === target);
     if (attribute) return [riskReductionTarget(RR_SCOPE.Attribute, attribute)];
     for (const name of skillNames) {
       const skillName = normalizeName(name);
       if (target === skillName) return [riskReductionTarget(RR_SCOPE.Skill, name)];
       if (!target.startsWith(skillName + ' (') || !target.endsWith(')')) continue;
       const specName = target.slice(skillName.length + 2, -1);
-      const learned = skillsArr.find(skill => normalizeName(skill.name) === skillName);
-      const options = [...specializationOptions(name).map(([value]) => value), ...(learned ? getSpecializations(learned) : [])];
-      const specialization = options.find(value => normalizeName(value) === specName) ?? specName;
+      const learned = skillsArr.find(skillObj => normalizeName(skillObj.name) === skillName);
+      const options = [...specializationOptions(name).map(([valueStr]) => valueStr), ...(learned ? getSpecializations(learned) : [])];
+      const specialization = options.find(valueStr => normalizeName(valueStr) === specName) ?? specName;
       if (specialization) return [riskReductionTarget(RR_SCOPE.Specialization, name, specialization)];
     }
     return [];

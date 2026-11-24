@@ -1,0 +1,61 @@
+runner-budget {
+  display: contents;
+}
+
+.balance-title {
+  color: var(--color-balance-label);
+  margin-top: 14px;
+}
+
+.big {
+  font-size: 30px;
+  font-weight: 800;
+  margin: 7px 0 14px;
+  letter-spacing: -1px;
+
+  @media (max-width: 600px) {
+    font-size: 24px;
+  }
+}
+
+.negative {
+  color: var(--color-negative-text);
+}
+
+.meter {
+  height: 8px;
+  background: var(--color-meter-track);
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 15px;
+
+  & > div {
+    height: 100%;
+    background: var(--color-accent);
+  }
+}
+
+.rowline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 13px;
+
+  & b {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.warnings {
+  & ul {
+    padding-left: 18px;
+    color: var(--color-warning-text);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  & li {
+    margin: 7px 0;
+  }
+}

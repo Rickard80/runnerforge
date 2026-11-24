@@ -1,0 +1,12 @@
+runner-catalog {
+  display: block;
+}
+
+.catalog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 330px;
+  overflow: auto;
+  margin: 12px 0 18px;
+}

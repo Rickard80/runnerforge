@@ -1,0 +1,15 @@
+.amps-panel .actions {
+  align-items: end;
+  justify-content: space-between;
+
+  & runner-field {
+    max-width: 150px;
+  }
+}
+
+.amps-panel .amp-notes textarea {
+  min-height: 0;
+  height: auto;
+  resize: vertical;
+  line-height: 1.3;
+}

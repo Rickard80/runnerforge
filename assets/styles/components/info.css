@@ -1,0 +1,54 @@
+runner-info {
+  position: relative;
+  align-self: end;
+
+  & summary {
+    display: grid;
+    place-items: center;
+    min-width: 34px;
+    min-height: 34px;
+    cursor: pointer;
+    border-radius: 6px;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent);
+    }
+
+    @media (pointer: coarse) {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+
+  & .info-text {
+    visibility: hidden;
+    pointer-events: none;
+    position: absolute;
+    z-index: 2;
+    inset-inline-end: 0;
+    bottom: calc(100% + 4px);
+    width: max-content;
+    max-width: min(19rem, 65vw);
+    padding: 8px 10px;
+    border: 1px solid var(--color-panel-border);
+    border-radius: var(--radius-control);
+    background: var(--color-panel-background);
+    font-size: 12px;
+    white-space: pre-line;
+  }
+
+  & details[open] .info-text,
+  & summary:focus-visible .info-text {
+    visibility: visible;
+  }
+
+  @media (hover: hover) {
+    & summary:hover .info-text {
+      visibility: visible;
+    }
+  }
+}

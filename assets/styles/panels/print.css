@@ -1,0 +1,9 @@
+.print-panel [data-action="generate"] {
+  margin-left: auto;
+}
+
+.preview-frame {
+  background: var(--color-preview-background);
+  padding: 16px;
+  overflow: auto;
+}

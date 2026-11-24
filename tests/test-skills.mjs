@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { AMP_PROFILES } from '../src/domain/data/amp-profiles.js';
 import { CONCEPTS } from '../src/domain/data/concepts.js';
-import { trainGeneratedRunner } from '../src/domain/generation.js';
+import { trainGeneratedRunner } from '../src/domain/generator.js';
 import { blank, calc } from '../src/domain/model.js';
 import { linkedAttributes, SKILLS, skillRule, specializationCode } from '../src/domain/specializations.js';
 
@@ -10,10 +10,10 @@ globalThis.customElements = { define() {} };
 const { AnarchyBuilder } = await import('../src/ui/builder/builder.js');
 const { printContentHTML, sheetSkillPages } = await import('../src/ui/print-sheet.js');
 
-function checkTraining([name, ...specializations]) {
-  assert(skillRule(name), `Unknown skill ${name}`);
-  for (const value of specializations) {
-    assert(specializationCode(name, value), `Unknown specialization ${value} for ${name}`);
+function checkTraining([nameStr, ...specializationsArr]) {
+  assert(skillRule(nameStr), `Unknown skill ${nameStr}`);
+  for (const value of specializationsArr) {
+    assert(specializationCode(nameStr, value), `Unknown specialization ${value} for ${nameStr}`);
   }
 }
 
@@ -22,14 +22,14 @@ for (const { training = [], trainingChoices = [] } of Object.values(AMP_PROFILES
   [...training, ...trainingChoices].forEach(checkTraining);
 }
 for (const concept of Object.values(CONCEPTS).flat()) {
-  concept.skills.forEach(name => checkTraining([name, ...(concept.specializations?.[name] ?? [])]));
+  concept.skills.forEach(nameStr => checkTraining([nameStr, ...(concept.specializations?.[nameStr] ?? [])]));
 }
 assert.equal(specializationCode('Sorcery', 'Health Spells'), 'W');
 assert.equal(specializationCode('Conjuring', 'Spirits of Kin'), 'L/C');
 assert.equal(specializationCode('Stealth', 'Lockpicking'), 'A/L');
 
-const skill = (name, rating, specializations = []) => ({
-  name, rating, attribute: linkedAttributes({ name })[0], specializations
+const skill = (nameStr, rating, specializationsArr = []) => ({
+  name: nameStr, rating, attribute: linkedAttributes({ name: nameStr })[0], specializations: specializationsArr
 });
 const app = new AnarchyBuilder();
 app.update = () => {};
@@ -47,13 +47,13 @@ app.s.attributes.Charisma = 3;
 app.s.attributes.Willpower = 4;
 const { first, continued } = sheetSkillPages(app.s);
 assert.equal(first.length, 10);
-assert.deepEqual(first.slice(0, 2).map(row => [row.attribute, row.specs, row.pool]), [
+assert.deepEqual(first.slice(0, 2).map(rowObj => [rowObj.attribute, rowObj.specs, rowObj.pool]), [
   ['Strength', 'Climbing', '7 (+2)'],
   ['Agility', 'Parkour', '6 (+2)']
 ]);
-assert.deepEqual(first.slice(2, 4).map(row => row.specs), ['Lockpicking', '']);
-assert.deepEqual(first.slice(4, 7).map(row => row.specs), ['First Aid', 'Animals', 'Composure']);
-assert.deepEqual(continued.map(row => row.attribute), ['Logic', 'Charisma']);
+assert.deepEqual(first.slice(2, 4).map(rowObj => rowObj.specs), ['Lockpicking', '']);
+assert.deepEqual(first.slice(4, 7).map(rowObj => rowObj.specs), ['First Aid', 'Animals', 'Composure']);
+assert.deepEqual(continued.map(rowObj => rowObj.attribute), ['Logic', 'Charisma']);
 const sheet = printContentHTML(app.s);
 assert.doesNotMatch(sheet, /ⓘ|runner-info|<input/);
 assert.match(sheet, />Athletics \(Climbing\)<.*left:38\.25%[^>]*>STR</);
@@ -68,13 +68,13 @@ app.tab = 'attributes';
 assert.match(app.tabContentHTML(), /<runner-info label="About Survival"/);
 assert.match(app.tabContentHTML(), /aria-expanded="false".*id="skill-attributes-panel"[^>]* hidden>/);
 const toggle = {
-  setAttribute(name, value) { this[name] = value; },
+  setAttribute(nameStr, valueStr) { this[nameStr] = valueStr; },
   focus() { this.focused = true; }
 };
 const panel = { hidden: true };
 const close = {};
 const elements = { '#skill-attributes-toggle': toggle, '#skill-attributes-panel': panel, '#skill-attributes-close': close, '#saved': {}, '#import': {} };
-app.querySelector = selector => elements[selector] ?? null;
+app.querySelector = selectorStr => elements[selectorStr] ?? null;
 app.querySelectorAll = () => [];
 app.bind();
 toggle.onclick();
@@ -95,20 +95,20 @@ assert.deepEqual(linkedAttributes({ name: 'Firearms', attribute: 'Agility' }), [
 app.removeSpecialization(1, 0);
 assert.match(app.skillRowHTML(app.s.skills[1], 1), /data-attribute="Agility">Lockpicking \(AGI\).*data-attribute="Logic">Lockpicking \(LOG\)/);
 app.addSpecialization(1, 'Lockpicking', 'Logic');
-assert.deepEqual(sheetSkillPages(app.s).first.slice(2, 4).map(row => [row.label, row.attribute]), [
+assert.deepEqual(sheetSkillPages(app.s).first.slice(2, 4).map(rowObj => [rowObj.label, rowObj.attribute]), [
   ['Stealth', 'Agility'],
   ['Stealth (Lockpicking)', 'Logic']
 ]);
 
 app.s.attributes.Strength = 3;
-const mergedAthletics = sheetSkillPages(app.s).first.filter(row => row.skill.name === 'Athletics');
+const mergedAthletics = sheetSkillPages(app.s).first.filter(rowObj => rowObj.skill.name === 'Athletics');
 assert.equal(mergedAthletics.length, 1);
 assert.equal(mergedAthletics[0].attributeLabel, 'STR, AGI');
 assert.equal(mergedAthletics[0].label, 'Athletics (Climbing [STR], Parkour [AGI])');
 assert.match(app.skillRowHTML(app.s.skills[0], 0), /strength 6.*agility 6.*data-path="skills.0.name"/);
 assert.match(app.skillRowHTML(app.s.skills[0], 0), /popover="manual".*role="dialog".*Custom specialization.*>Name<.*>Attribute<.*data-close-custom.*data-confirm-custom disabled/);
 app.s.knowledge = ['Seattle', 'Street vendors'];
-assert.match(app.skillsHTML(), /class="stack knowledge-grid"/);
+assert.match(app.skillsHTML(), /<runner-entry-list class="knowledge-grid" data-reorder-list="knowledge">/);
 app.s.items = [{ name: 'Medkit', type: 'equipment', description: 'Medical', cost: 2500 }];
 assert.doesNotMatch(app.itemRowHTML(0), /path="items.0.type"/);
 assert.match(app.itemRowHTML(0), /label="Description \/ type" path="items.0.description"/);
@@ -127,9 +127,9 @@ assert.match(app.catalogHTML('gear'), /data-catalog="amp\|Racing Bike\|5000"/);
 const capped = blank();
 capped.level = 'Ganger';
 capped.skills = SKILLS.slice(0, 7).concat('Electronics')
-  .map(name => skill(name, name === 'Electronics' ? 3 : 4));
+  .map(nameStr => skill(nameStr, nameStr === 'Electronics' ? 3 : 4));
 capped.amps = Array.from({ length: 11 }, () => ({ name: 'Existing Shadow Amp', rating: 1 }));
-const names = capped.skills.map(row => row.name);
+const names = capped.skills.map(rowObj => rowObj.name);
 const random = Math.random;
 try {
   Math.random = () => 0;
@@ -137,7 +137,7 @@ try {
 } finally {
   Math.random = random;
 }
-assert.deepEqual(capped.skills.map(row => row.name), names);
-assert.deepEqual(capped.skills.map(row => row.rating), [4, 4, 4, 4, 4, 4, 4, 3]);
+assert.deepEqual(capped.skills.map(rowObj => rowObj.name), names);
+assert.deepEqual(capped.skills.map(rowObj => rowObj.rating), [4, 4, 4, 4, 4, 4, 4, 3]);
 assert(calc(capped).remaining >= 0);
 console.log('Passed skill definitions, specialization dice pools, continuation rows, and capped generation.');

@@ -4,6 +4,7 @@
 }
 
 .sheet-rr {
+  --sheet-rr-ink: #713c37;
   position: relative;
   display: inline-block;
   width: 1.1rem;
@@ -27,7 +28,7 @@ button.sheet-rr:hover {
 }
 
 button.sheet-rr:focus-visible {
-  outline: 2px solid #713c37;
+  outline: 2px solid var(--sheet-rr-focus, var(--sheet-rr-ink));
   outline-offset: 1px;
 }
 
@@ -41,8 +42,8 @@ button.sheet-rr[aria-disabled="true"] {
   inset: 14% 12% 12% 14%;
   border-radius: 45% 52% 42% 51%;
   background:
-    repeating-linear-gradient(134deg, transparent 0 1px, #713c37 1px 2px, transparent 2px 3px),
-    repeating-linear-gradient(32deg, #713c37 0 1px, transparent 1px 2.8px);
+    repeating-linear-gradient(134deg, transparent 0 1px, var(--sheet-rr-ink) 1px 2px, transparent 2px 3px),
+    repeating-linear-gradient(32deg, var(--sheet-rr-ink) 0 1px, transparent 1px 2.8px);
   transform: rotate(-9deg);
   print-color-adjust: exact;
 }

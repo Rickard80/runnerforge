@@ -1,0 +1,48 @@
+.sheet {
+  position: relative;
+  background: url("../../images/clean-sheet.webp") center / 100% 100% no-repeat;
+  container-type: inline-size;
+}
+
+.sheet .overlay {
+  position: absolute;
+  font-family: Arial, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sheet .portrait {
+  position: absolute;
+  left: 64.8%;
+  top: 8.8%;
+  width: 32.8%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  mask: url("../../images/avatar-mask.webp") center / 100% 100% no-repeat;
+  mask-mode: luminance;
+}
+
+.sheet .wound {
+  position: absolute;
+  width: 1.28%;
+  height: .97%;
+  border-radius: 50%;
+  background: #5d2e20;
+}
+
+.sheet-notes p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sheet-skills {
+  & table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  & :is(th, td) {
+    text-align: left;
+  }
+}

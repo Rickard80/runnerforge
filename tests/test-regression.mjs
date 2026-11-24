@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 globalThis.HTMLElement = class {};
 globalThis.customElements = {
   define() {}
@@ -25,9 +24,9 @@ for (let i = 0; i < 500; i++) {
   if (maxed(s) > LEVELS[s.level].max) throw Error('Too many max attributes');
   if (calc(s).remaining >= 20000) {
     above++;
-    if (!app.lastGeneratedAttributeUpgrade) throw Error(
-      `Generated character has ${calc(s).remaining}¥ but did not upgrade a linked attribute: ${JSON.stringify(s.attributes)}`
-      );
+    if (upgradeGeneratedAttribute(structuredClone(s))) {
+      throw Error(`Generated character has ${calc(s).remaining}¥ and can still upgrade a linked attribute: ${JSON.stringify(s.attributes)}`);
+    }
   } else below++;
 }
 console.log('500 generated: >=20k remaining', above, '<20k', below);
