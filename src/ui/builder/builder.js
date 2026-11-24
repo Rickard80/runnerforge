@@ -28,6 +28,7 @@ import {
   ALTERNATE_WOUND_PRESETS
 } from '../../domain/model.js';
 import { normalizeName } from '../../domain/names.js';
+import { toggleRiskReduction } from '../../domain/risk-reduction.js';
 import { readSavedCharacters, restoreCharacter, writeSavedCharacters } from '../../infrastructure/character-storage.js';
 import { escapeHTML, inlineInputHTML, optionHTML } from '../html.js';
 import { infoIcon } from '../components/info.js';
@@ -742,6 +743,7 @@ export class AnarchyBuilder extends HTMLElement {
         '<button data-action="generate">Generate character</button>',
       '</div>',
       '<p class="muted">Select a highlighted field to edit it. To save a PDF, choose “Save to PDF” in your browser’s print dialog.</p>',
+      '<p class="muted">Risk Reduction (RR) circles are ordered by attribute, skill, and specialization. Maximum 1 RR per attribute, skill, or specialization.</p>',
       '<div class="preview-frame"><runner-print-sheet id="sheetMount"></runner-print-sheet></div>'
     ].join('');
   }
@@ -1006,6 +1008,14 @@ export class AnarchyBuilder extends HTMLElement {
     if (!editor) return;
     editor.addEventListener('input', event => this.editInlineField(event, sheet));
     editor.addEventListener('focusout', event => this.editInlineField(event, sheet));
+    sheet?.addEventListener('click', event => this.toggleSheetRiskReduction(event, sheet));
+  }
+
+  toggleSheetRiskReduction(eventObj, sheetObj) {
+    const control = eventObj.target.closest('button[data-rr-keys]');
+    if (!control || control.getAttribute('aria-disabled') === 'true') return;
+    toggleRiskReduction(this.s, JSON.parse(control.dataset.rrKeys));
+    sheetObj.refreshRiskReduction(this.s);
   }
 
   editInlineField({ type, target }, sheet) {

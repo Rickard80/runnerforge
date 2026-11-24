@@ -1,0 +1,48 @@
+.sheet-rr-group {
+  display: flex;
+  gap: .3em;
+}
+
+.sheet-rr {
+  position: relative;
+  display: inline-block;
+  width: 1.1rem;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid #b58a23;
+  border-radius: 50%;
+  background: transparent;
+  vertical-align: middle;
+}
+
+.sheet-rr-positioned {
+  position: absolute;
+  width: 2.05cqw;
+  transform: translate(-50%, -50%);
+  border: 0;
+}
+
+button.sheet-rr:hover {
+  background: #e9bd3440;
+}
+
+button.sheet-rr:focus-visible {
+  outline: 2px solid #713c37;
+  outline-offset: 1px;
+}
+
+button.sheet-rr[aria-disabled="true"] {
+  cursor: default;
+}
+
+.sheet-rr:is([aria-pressed="true"], .sheet-rr-marked)::before {
+  content: "";
+  position: absolute;
+  inset: 14% 12% 12% 14%;
+  border-radius: 45% 52% 42% 51%;
+  background:
+    repeating-linear-gradient(134deg, transparent 0 1px, #713c37 1px 2px, transparent 2px 3px),
+    repeating-linear-gradient(32deg, #713c37 0 1px, transparent 1px 2.8px);
+  transform: rotate(-9deg);
+  print-color-adjust: exact;
+}

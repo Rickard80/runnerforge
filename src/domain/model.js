@@ -31,7 +31,7 @@ const blank = () => ({
   portrait: '',
   essence: '',
   notes: '',
-  riskReduction: 0,
+  riskReduction: [],
   woundSettings: {
     mainArmorName: '',
     mainArmorIncrease: null,
