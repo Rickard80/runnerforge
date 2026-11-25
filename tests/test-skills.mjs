@@ -132,6 +132,7 @@ assert.match(app.specializationBadges(perception, 0), /Trail Signs <span class="
 const gear = app.catalogPanelHTML('gear', 'Catalog');
 assert.match(gear, /value="Communication".*value="Drones".*value="General".*value="Medical"/);
 assert.doesNotMatch(gear, /value="Vehicle"|Racing Bike/);
+assert.match(gear, /label="Mirrored Persona" cost="5,000¥ · Sustained"/);
 app.catalogFilters.gear.category = 'General';
 const general = app.catalogHTML('gear');
 assert.match(general, /Electronics toolkit.*Lockpick set.*Tool kit/);
@@ -140,6 +141,23 @@ app.catalogFilters.gear.category = 'Medical';
 assert.match(app.catalogHTML('gear'), /DocWagon contract/);
 app.catalogFilters.magic.category = 'Vehicle';
 assert.match(app.catalogHTML('magic'), /data-catalog="amp\|Racing Bike" label="Racing Bike" cost="5,000¥/);
+app.catalogFilters.gear = { category: '', search: '  SUSTAINED  ' };
+assert.match(app.catalogHTML('gear'), /label="Mirrored Persona"/);
+app.catalogFilters.gear.search = 'Sustained\tKatana';
+assert.match(app.catalogHTML('gear'), /label="Katana"/);
+assert.doesNotMatch(app.catalogHTML('gear'), /label="Mirrored Persona"/);
+app.catalogFilters.gear.search = 'decoy Katana';
+assert.match(app.catalogHTML('gear'), /label="Katana".*label="Mirrored Persona"/);
+app.catalogFilters.magic = { category: '', search: 'vehicle' };
+assert.match(app.catalogHTML('magic'), /label="Racing Bike"/);
+app.catalogFilters.magic.search = 'vehicle danger';
+assert.match(app.catalogHTML('magic'), /label="Danger Sense"/);
+assert.doesNotMatch(app.catalogHTML('magic'), /label="Racing Bike"/);
+app.catalogFilters.magic.search = 'pilot danger';
+assert.match(app.catalogHTML('magic'), /label="Danger Sense".*label="Racing Bike"/);
+app.catalogFilters.magic.category = 'Vehicle';
+assert.match(app.catalogHTML('magic'), /label="Racing Bike"/);
+assert.doesNotMatch(app.catalogHTML('magic'), /label="Danger Sense"/);
 for (const [name, profile] of Object.entries(AMP_PROFILES)) {
   if (profile.group === AMP_GROUP.Vehicle) assert(!Object.hasOwn(CATALOG, name));
 }
@@ -150,6 +168,8 @@ gearApp.addCatalogItem({ type: 'equipment', name: 'Medkit' });
 gearApp.addCatalogItem({ type: 'complex form', name: 'Mirrored Persona' });
 assert.equal(gearApp.s.items[0].description, 'Medical');
 assert.equal(gearApp.s.items[1].description, CATALOG['Mirrored Persona'].description);
+assert.match(gearApp.itemRowHTML(0), /label="Description \/ type" path="items.0.description" value="Medical"/);
+assert.match(gearApp.itemRowHTML(1), /label="Description \/ type" path="items.1.description" value="Creates a virtual decoy"/);
 assert.match(gearApp.itemRowHTML(1), /label="Name".*label="Rating" path="items.1.rating" value="2".*label="Description \/ type".*class="cost">5,000¥.*data-remove="items.1"/);
 const price = {};
 let budget;
@@ -163,7 +183,11 @@ gearApp.changeField({
 assert.equal(gearApp.s.items[1].cost, 7500);
 assert.equal(price.textContent, '7,500¥');
 assert.equal(budget.items, 10000);
-assert.match(printContentHTML(gearApp.s), /Mirrored Persona, Creates a virtual decoy/);
+gearApp.addCatalogItem({ type: 'weapon', name: 'Katana' });
+const printedGear = printContentHTML(gearApp.s);
+assert.match(printedGear, /Mirrored Persona, Sustained, Creates a virtual decoy/);
+assert.match(printedGear, />Katana, Long melee<\/div>/);
+assert.match(printContentHTML(gearApp.s, true), /Mirrored Persona, Sustained, Creates a virtual decoy/);
 
 const capped = blank();
 capped.level = 'Ganger';

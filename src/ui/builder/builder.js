@@ -101,7 +101,7 @@ export class AnarchyBuilder extends HTMLElement {
   constructor() {
     super();
     this.s = blank();
-    this.tab = TAB.Print;
+    this.tab = TAB.Identity;
     this.skillAttributesVisible = false;
     this.notice = '';
     this.catalogFilters = {
@@ -397,7 +397,6 @@ export class AnarchyBuilder extends HTMLElement {
         this.field('Role family', FIELD_PATH.Role, { options: [ROLE.Any, ...Object.keys(CONCEPTS)] }),
         this.field('Concept', 'concept', { options: concepts }),
       '</div>',
-      source ? `<p class="muted">Concept reference · ${escapeHTML(source)}</p>` : '',
       `<label class="check"><input type="checkbox" data-check="personality" ${personality ? 'checked' : ''}> Generate personality</label>`,
       '<div class="actions">',
         `<button data-action="${ACTION.Generate}" class="primary">Generate character</button>`,
@@ -602,7 +601,7 @@ export class AnarchyBuilder extends HTMLElement {
     const path = `items.${index}`;
     const item = this.s.items[index];
     const cost = +item.cost || 0;
-    const description = item.description ?? catalogDescription(catalogProfile(item.type, item.name));
+    const description = item.description ?? item.group ?? catalogDescription(catalogProfile(item.type, item.name));
     return this.entryRowHTML({ keyStr: ENTRY_LIST.Items, index, nameStr: item.name || 'item', fieldsArr: [
       this.field('Name', `${path}.name`),
       this.field('Rating', `${path}.rating`, { type: FIELD_KIND.Number, className: 'rating-field', step: 'any', value: cost / GEAR_RATING_PRICE }),
@@ -734,7 +733,7 @@ export class AnarchyBuilder extends HTMLElement {
 
   catalogHTML(tabStr = this.tab) {
     const { [CATALOG_FILTER.Search]: search, [CATALOG_FILTER.Category]: category } = this.catalogFilters[tabStr];
-    const query = normalizeName(search);
+    const words = normalizeName(search).split(/\s+/).filter(Boolean);
     const chosen = new Set(this.s.items.map(itemObj => itemObj.type + '|' + itemObj.name));
     const itemNames = new Set(this.s.items.map(itemObj => normalizeName(itemObj.name)));
     const ampNames = new Set(this.s.amps.map(ampObj => normalizeName(ampObj.name)));
@@ -742,7 +741,10 @@ export class AnarchyBuilder extends HTMLElement {
       [ampObj.name, ...(AMP_PROFILES[ampObj.name]?.replaces ?? [])]).map(normalizeName));
     const available = catalogs[tabStr].filter(itemObj => {
       if (category && itemObj.category !== category) return false;
-      if (!normalizeName([itemObj.name, itemObj.group, itemObj.category, itemObj.description].join(' ')).includes(query)) return false;
+      const searchable = [itemObj.name, itemObj.description ?? itemObj.effect];
+      if (words.length === 1) searchable.push(itemObj.group);
+      const text = normalizeName(searchable.join(' '));
+      if (words.length && !words.some(wordStr => text.includes(wordStr))) return false;
       if (itemObj.type === ITEM_TYPE.Amp) {
         return !ampNames.has(normalizeName(itemObj.name)) &&
           ![itemObj.name, ...(itemObj.replaces ?? [])].some(nameStr => itemNames.has(normalizeName(nameStr)));
@@ -757,7 +759,7 @@ export class AnarchyBuilder extends HTMLElement {
     const price = itemObj.cost;
     const key = `${escapeHTML(itemObj.type)}|${escapeHTML(itemObj.name)}`;
     const label = escapeHTML(itemObj.name);
-    const cost = `${money(price)} · ${escapeHTML(catalogDescription(itemObj))}`;
+    const cost = `${money(price)} · ${escapeHTML(itemObj.group)}`;
     return `<runner-catalog-item data-catalog="${key}" label="${label}" cost="${cost}"></runner-catalog-item>`;
   }
   bind() {

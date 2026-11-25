@@ -269,7 +269,7 @@ export function catalogProfile(typeStr, nameStr) {
   return profile?.type === typeStr ? profile : undefined;
 }
 
-export const catalogDescription = profileObj => profileObj?.description || profileObj?.group || '';
+export const catalogDescription = profileObj => profileObj?.description ?? profileObj?.group ?? '';
 export const priceGearRating = rating => Math.round(rating * GEAR_RATING_PRICE);
 
 export function makeCatalogItem(nameStr) {

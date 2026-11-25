@@ -1,4 +1,4 @@
-import { catalogDescription, catalogProfile } from '../domain/data/catalog.js';
+import { catalogProfile } from '../domain/data/catalog.js';
 import { PERSONALITY_ENTRY_COUNT, PERSONALITY_ENTRY_LENGTH, PERSONALITY_LABELS } from '../domain/data/personality.js';
 import { ATTRIBUTES, ENTRY_LIST, ITEM_TYPE, WOUND_SEVERITY, WOUND_TYPE } from '../domain/data/rules.js';
 import { calc, money, woundArmor, woundThresholds } from '../domain/model.js';
@@ -9,7 +9,7 @@ import { refreshSheetRiskReduction, sheetRiskReductionHTML } from './sheet-risk-
 
 const skillSheetRowLimit = 11;
 export const sheetItemType = { [ITEM_TYPE.Weapon]: 'Weapon', [ITEM_TYPE.Spell]: 'Spell', [ITEM_TYPE.ComplexForm]: 'Complex Form' };
-let personalityTextMetrics;
+let sheetTextMetrics;
 
 export class RunnerPrintSheet extends HTMLElement {
   set character(characterObj) {
@@ -210,12 +210,16 @@ function sheetSkillRowsHTML(rowsArr, optionsObj) {
 }
 
 function personalityFontSize(valueStr, width) {
+  return valueStr?.length > PERSONALITY_ENTRY_LENGTH ? 1.2 : fittedSheetFontSize(valueStr, width);
+}
+
+function fittedSheetFontSize(valueStr, width) {
   const standardSize = 1.2;
-  if (!valueStr || valueStr.length > PERSONALITY_ENTRY_LENGTH || typeof document === 'undefined') return standardSize;
-  personalityTextMetrics ??= document.createElement('canvas').getContext('2d');
-  if (!personalityTextMetrics) return standardSize;
-  personalityTextMetrics.font = '100px Arial, sans-serif';
-  const textWidth = personalityTextMetrics.measureText(valueStr).width / 100;
+  if (!valueStr || typeof document === 'undefined') return standardSize;
+  sheetTextMetrics ??= document.createElement('canvas').getContext('2d');
+  if (!sheetTextMetrics) return standardSize;
+  sheetTextMetrics.font = '100px Arial, sans-serif';
+  const textWidth = sheetTextMetrics.measureText(valueStr).width / 100;
   return Math.min(standardSize, (width - .25) / textWidth);
 }
 
@@ -299,11 +303,17 @@ function sheetKnowledgeAndEssenceHTML({ knowledge: knowledgeArr, essence: essenc
 
 function sheetWeaponsAndSpellsHTML(itemsArr) {
   const entries = itemsArr.filter(itemObj => Object.hasOwn(sheetItemType, itemObj.type));
-  return entries.slice(0, 4).map(({ name: nameStr, type: typeStr, description: descriptionStr }, index) => {
-    const description = descriptionStr ?? catalogDescription(catalogProfile(typeStr, nameStr));
-    const nameHTML = sheetOverlayHTML([nameStr, description].filter(Boolean).join(', '), {
+  return entries.slice(0, 4).map(({ name: nameStr, type: typeStr, group: groupStr, description: descriptionStr }, index) => {
+    const profile = catalogProfile(typeStr, nameStr);
+    const group = String(groupStr ?? profile?.group ?? '').trim();
+    const description = String(descriptionStr ?? profile?.description ?? '').trim();
+    const groupPrefix = `${group} · `;
+    const details = group && description.startsWith(groupPrefix) ? description.slice(groupPrefix.length) : description;
+    const label = [nameStr, group, details === group ? '' : details].filter(Boolean).join(', ');
+    const width = 43;
+    const nameHTML = sheetOverlayHTML(label, {
       className: 'overlay-weapons-and-spells overlay-item-name',
-      left: 5.3, top: 77.5 + index * 2.16, width: 43, height: 1.7, fontSize: 1.2
+      left: 5.3, top: 77.5 + index * 2.16, width, height: 1.7, fontSize: fittedSheetFontSize(label, width)
     });
     const typeHTML = sheetOverlayHTML(sheetItemType[typeStr], {
       className: 'overlay-weapons-and-spells overlay-item-type',
