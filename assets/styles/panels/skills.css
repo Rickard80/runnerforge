@@ -67,3 +67,10 @@
     }
   }
 }
+
+.specialization-badge-custom {
+  --color-specialization-badge-background: #3c3054;
+  --color-specialization-badge-text: #f0ddff;
+  --color-specialization-badge-border: #9982ba;
+  --color-specialization-remove-hover-background: #694676;
+}

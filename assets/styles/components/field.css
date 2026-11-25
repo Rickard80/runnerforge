@@ -25,3 +25,30 @@ runner-field {
   font-size: 12px;
   color: var(--color-field-label);
 }
+
+.rollable-field {
+  display: grid;
+  flex: 1;
+
+  & > * {
+    grid-area: 1 / 1;
+  }
+
+  & > button {
+    align-self: end;
+    justify-self: end;
+    display: grid;
+    place-items: center;
+    inline-size: 2.5rem;
+    block-size: calc(1lh + 18px);
+    margin-block-end: 1px;
+    margin-inline-end: 1px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+
+    &:focus-visible {
+      outline-offset: -3px;
+    }
+  }
+}

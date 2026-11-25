@@ -57,7 +57,8 @@ export const CONCEPTS = {
       amps: ['Dermal Plating', 'Platelet Factories'], weight: 2, source: 'pp. 104–105 (Drakk)' },
     { name: 'Weapons Specialist', attribute: ATTRIBUTE.Agility, skills: [SKILL.RangedWeapons, SKILL.Engineering],
       specializations: { [SKILL.Engineering]: ['Mechanical B&R'], [SKILL.RangedWeapons]: ['Rifles', 'Heavy Weapons'] }, equipment: ['Tool kit'],
-      amps: ['Reflex Recorder (Rifles)', 'Gunsmith'], weight: 2, source: 'pp. 159, 164 (Reflex Recorder and Gunsmith contact)' }
+      amps: ['Reflex Recorder', 'Gunsmith'], ampTrainingSelections: { 'Reflex Recorder': [[SKILL.RangedWeapons, 'Rifles']] },
+      weight: 2, source: 'pp. 159, 164 (Reflex Recorder and Gunsmith contact)' }
   ],
   Specialist: [
     { name: 'Bounty Hunter', attribute: ATTRIBUTE.Logic, skills: [SKILL.Perception, SKILL.RangedWeapons],

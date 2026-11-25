@@ -2,7 +2,6 @@ import { AMP_PROFILES } from './data/amp-profiles.js';
 import { ATTRIBUTE, ATTRIBUTES, ITEM_TYPE, LEVEL, LEVELS, LIMITS, METATYPE, NO_WOUND_ATTRIBUTE, RANDOM_CONCEPT, ROLE, WOUND_SEVERITY, WOUND_TYPE } from './data/rules.js';
 import { getSpecializations } from './specializations.js';
 
-export const isFreeCommlink = nameStr => /commlink/i.test(nameStr);
 const money = amount => new Intl.NumberFormat('en-US').format(Math.round(amount)) + '¥';
 const pick = valuesArr => valuesArr[Math.floor(Math.random() * valuesArr.length)];
 export const ALTERNATE_WOUND_PRESETS = {
@@ -111,8 +110,7 @@ function characterCosts(characterObj) {
     total + priceSkill(skillObj.rating) + getSpecializations(skillObj).filter(Boolean).length * 2500, 0);
   const knowledge = characterObj.knowledge.filter(x => x.trim()).length * 2500;
   const amps = characterObj.amps.reduce((total, ampObj) => total + priceAmp(ampObj), 0);
-  const items = characterObj.items.reduce((n, x) => n + (x.type === ITEM_TYPE.Equipment && isFreeCommlink(x.name) ? 0 : (+x.cost || 0)),
-    0);
+  const items = characterObj.items.reduce((total, itemObj) => total + (+itemObj.cost || 0), 0);
   return { attr: attributeCosts(characterObj), skills, knowledge, amps, items };
 }
 
@@ -130,7 +128,7 @@ function characterWarnings(characterObj, levelObj, spent) {
   const warnings = [];
   const essence = String(characterObj.essence ?? '').trim().replace(',', '.');
   if (essence && Number(essence) <= 0) warnings.push('Essence must be greater than 0.');
-  if (characterObj.items.filter(x => x.type === ITEM_TYPE.Equipment && !isFreeCommlink(x.name)).length > 4) warnings.push(
+  if (characterObj.items.filter(x => x.type === ITEM_TYPE.Equipment).length > 4) warnings.push(
     'Maximum 4 equipment items; remove extras.');
   if (spent > levelObj.budget) warnings.push('Budget exceeded by ' + money(spent - levelObj.budget));
   ATTRIBUTES.forEach((attributeStr, index) => {

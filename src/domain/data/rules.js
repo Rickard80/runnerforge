@@ -34,7 +34,6 @@ export const WOUND_SEVERITY = Object.freeze({
 });
 
 export const ITEM_TYPE = Object.freeze({
-  Vehicle: 'vehicle',
   ComplexForm: 'complex form',
   Weapon: 'weapon',
   Spell: 'spell',

@@ -35,6 +35,9 @@ runner-entry-list {
 
   & textarea {
     field-sizing: content;
+    min-height: 0;
+    resize: vertical;
+    line-height: 1.3;
   }
 }
 

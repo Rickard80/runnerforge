@@ -1,4 +1,4 @@
-import { CATALOG } from '../domain/data/catalog.js';
+import { catalogNames } from '../domain/data/catalog.js';
 import { AMP_PROFILES, EMERGED_AMP } from '../domain/data/amp-profiles.js';
 import { CONCEPTS, conceptsForRole } from '../domain/data/concepts.js';
 import { ATTRIBUTES, NO_WOUND_ATTRIBUTE, RANDOM_CONCEPT, ROLE, WOUND_TYPE } from '../domain/data/rules.js';
@@ -72,5 +72,5 @@ function restoreAmp(ampObj) {
 
 function restoreItem(itemObj) {
   const type = normalizeName(itemObj.type);
-  return Object.hasOwn(CATALOG, type) ? { ...itemObj, type } : itemObj;
+  return catalogNames(type).length ? { ...itemObj, type } : itemObj;
 }

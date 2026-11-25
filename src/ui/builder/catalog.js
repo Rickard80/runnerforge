@@ -6,7 +6,7 @@ export function catalogPanelHTML({ searchLabel: searchLabelStr, filters: filters
   return [
     '<runner-catalog><div class="formgrid">',
       `<label class="field"><span>${escapeHTML(searchLabelStr)}</span>`,
-        `<input data-catalog-search placeholder="Search names or type" value="${escapeHTML(filtersObj[CATALOG_FILTER.Search])}">`,
+        `<input data-catalog-search placeholder="Search" value="${escapeHTML(filtersObj[CATALOG_FILTER.Search])}">`,
       '</label>',
       '<label class="field"><span>Category</span><select data-catalog-category>',
         '<option value="">All categories</option>',
@@ -36,9 +36,9 @@ export class RunnerCatalog extends HTMLElement {
   pickItem(eventObj) {
     const button = eventObj.target.closest('button[data-catalog]');
     if (!button || !this.contains(button)) return;
-    const [type, name, cost] = button.dataset.catalog.split('|');
+    const [type, name] = button.dataset.catalog.split('|');
     this.dispatchEvent(new CustomEvent('catalog-pick', {
-      bubbles: true, detail: { type, name, cost: Number(cost) }
+      bubbles: true, detail: { type, name }
     }));
   }
 

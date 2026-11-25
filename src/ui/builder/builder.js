@@ -1,20 +1,24 @@
 import { AMP_PROFILES, EMERGED_AMP, SHADOW_AMP_RULES_SOURCE, makeAmp } from '../../domain/data/amp-profiles.js';
 import { CONCEPTS, conceptsForRole } from '../../domain/data/concepts.js';
 import { AMP_GROUP, ATTRIBUTES, ENTRY_LIST, ITEM_TYPE, LEVELS, LIMITS, NO_WOUND_ATTRIBUTE, RANDOM_CONCEPT, ROLE, WOUND_TYPE } from '../../domain/data/rules.js';
-import { CATALOG } from '../../domain/data/catalog.js';
+import { CATALOG, catalogDescription, catalogProfile, GEAR_RATING_PRICE, makeCatalogItem, priceGearRating } from '../../domain/data/catalog.js';
+import { KNOWLEDGE_SKILLS } from '../../domain/data/knowledge.js';
 import {
+  DISPOSITIONS,
+  KEYWORDS,
   PERSONALITY_ENTRY_COUNT,
   PERSONALITY_ENTRY_LENGTH,
-  PERSONALITY_LABELS
+  PERSONALITY_LABELS,
+  STREETWISE_CUES
 } from '../../domain/data/personality.js';
-import { abbreviatedAttribute, getSpecializations, linkedAttributes, SKILLS, skillRule, specializationAttribute, specializationOptions, TASKING } from '../../domain/specializations.js';
+import { abbreviatedAttribute, getSpecializations, linkedAttributes, SKILLS, skillRule, specializationAttribute, specializationCode, specializationOptions, TASKING } from '../../domain/specializations.js';
 import { generateCharacter } from '../../domain/generator.js';
 import {
   money,
   blank,
   calc,
   equipArmorAmp,
-  isFreeCommlink,
+  pick,
   priceSkill,
   priceAmp,
   woundArmor,
@@ -57,24 +61,32 @@ const ACTION = Object.freeze({
   AddKnowledge: 'addknowledge',
   AddAmp: 'addamp',
   AddItem: 'additem',
-  EditPortrait: 'editportrait',
   ClearPortrait: 'clearportrait'
 });
+
+const FIELD_ROLL_POOLS = {
+  [ENTRY_LIST.Knowledge]: KNOWLEDGE_SKILLS,
+  keywords: KEYWORDS,
+  dispositions: DISPOSITIONS,
+  cues: STREETWISE_CUES
+};
 
 const ampReviewNote = sourceStr => sourceStr
   ? `Review Amp components and rating, ${sourceStr}.`
   : `Review the general Shadow Amp rules, ${SHADOW_AMP_RULES_SOURCE}.`;
-const gearCatalog = {};
-for (const [type, items] of Object.entries(CATALOG)) {
-  for (const item of items) {
-    if (AMP_PROFILES[item.name]?.group === AMP_GROUP.WeaponAmp) continue;
-    const category = type === ITEM_TYPE.Equipment ? item.group : type[0].toUpperCase() + type.slice(1);
-    const entry = type === ITEM_TYPE.Vehicle ? { ...item, type: ITEM_TYPE.Amp, cost: priceAmp(item) } : { ...item, type };
-    (gearCatalog[category] ??= []).push({ ...entry, category });
-  }
-}
 const catalogs = {
-  [TAB.Gear]: Object.values(gearCatalog).flat(),
+  [TAB.Gear]: Object.entries(CATALOG)
+    .filter(([nameStr]) => AMP_PROFILES[nameStr]?.group !== AMP_GROUP.WeaponAmp)
+    .map(([nameStr, profileObj]) => {
+      const { type, group, rating } = profileObj;
+      const category = type === ITEM_TYPE.Equipment ? group : type[0].toUpperCase() + type.slice(1);
+      return {
+        ...profileObj,
+        name: nameStr,
+        cost: priceGearRating(rating),
+        category
+      };
+    }),
   [TAB.ShadowAmps]: Object.entries(AMP_PROFILES).map(([nameStr, profileObj]) => ({
     ...profileObj,
     name: nameStr,
@@ -105,9 +117,9 @@ export class AnarchyBuilder extends HTMLElement {
     const drafts = this.readSpecializationDrafts();
     this.innerHTML = this.layoutHTML(Object.keys(this.saves).sort(), this.tabContentHTML());
     this.updateBudget();
+    this.mountPrintSheet();
     this.bind();
     this.restoreSpecializationDrafts(drafts);
-    this.mountPrintSheet();
   }
 
   readSpecializationDrafts() {
@@ -152,7 +164,6 @@ export class AnarchyBuilder extends HTMLElement {
     if (keyStr === ENTRY_LIST.Amps && this.s.amps.some(x => normalizeName(x.name) === normalizeName(entryObj.name))) return 'Shadow Amp already selected.';
     if (keyStr === ENTRY_LIST.Items && entryObj.type === ITEM_TYPE.Equipment && this.s.items.filter(x => x.type === ITEM_TYPE.Equipment).length >= 4)
       return 'Maximum 4 equipment items.';
-    if (keyStr === ENTRY_LIST.Items && entryObj.type === ITEM_TYPE.Equipment && isFreeCommlink(entryObj.name)) return 'Commlinks are included for free and cannot be purchased.';
     if (keyStr === ENTRY_LIST.Items && entryObj.type === ITEM_TYPE.Weapon && this.s.items.filter(x => x.type === ITEM_TYPE.Weapon).length >= 4)
           return 'Maximum 4 weapons.';
   }
@@ -216,7 +227,7 @@ export class AnarchyBuilder extends HTMLElement {
   exportJSON() {
     this.download(new Blob([JSON.stringify(this.s, null, 2)], {
       type: 'application/json'
-    }), (this.s.name || 'runner') + '.json')
+    }), `${(this.s.name || 'runner')}-${this.s.metatype}.json`)
   }
   download(blobObj, nameStr) {
     const u = URL.createObjectURL(blobObj),
@@ -238,14 +249,13 @@ export class AnarchyBuilder extends HTMLElement {
       this.notify('Import failed: ' + e.message)
     }
   }
-  editPortrait(portraitSource) {
+  editPortrait(portraitSource, triggerIdStr) {
     if (!portraitSource) return;
     const editor = document.createElement('runner-portrait-editor');
     editor.addEventListener('portrait-ready', eventObj => {
       this.s.portrait = eventObj.detail;
       this.update();
-      const trigger = typeof portraitSource === 'string' ? `[data-action="${ACTION.EditPortrait}"]` : '#portrait';
-      this.querySelector(trigger)?.focus();
+      this.querySelector(`#${triggerIdStr}`)?.focus();
     }, { once: true });
     document.body.append(editor);
     editor.open(portraitSource);
@@ -283,6 +293,7 @@ export class AnarchyBuilder extends HTMLElement {
   }
   specializationPicker(skillObj, index) {
     const occupied = new Set(getSpecializations(skillObj).map(normalizeName));
+    const attributes = linkedAttributes(skillObj);
     const options = specializationOptions(skillObj.name)
       .filter(([value]) => !occupied.has(normalizeName(value)))
       .sort(([firstNameStr], [secondNameStr]) => firstNameStr.localeCompare(secondNameStr))
@@ -290,11 +301,11 @@ export class AnarchyBuilder extends HTMLElement {
         const codes = codeStr.split('/');
         return codes.map(initialStr => {
           const attribute = ATTRIBUTES.find(nameStr => nameStr[0] === initialStr);
-          return `<option value="${escapeHTML(value)}" data-attribute="${attribute}">${escapeHTML(value)} (${abbreviatedAttribute(attribute)})</option>`;
+          const suffix = attributes.length > 1 ? ` (${abbreviatedAttribute(attribute)})` : '';
+          return `<option value="${escapeHTML(value)}" data-attribute="${attribute}">${escapeHTML(value)}${suffix}</option>`;
         });
       })
       .join('');
-    const attributes = linkedAttributes(skillObj);
     const preferred = specializationAttribute(skillObj, '');
 
     return specializationPickerHTML({ index, skillName: skillObj.name, options, attributes, preferred });
@@ -309,20 +320,29 @@ export class AnarchyBuilder extends HTMLElement {
 
   specializationBadgeHTML({ skillObj, valueStr, skillIndex, badgeIndex }) {
     const label = escapeHTML(valueStr);
-    const code = abbreviatedAttribute(specializationAttribute(skillObj, valueStr));
+    const isCustom = !specializationCode(skillObj.name, valueStr);
+    const attributes = linkedAttributes(skillObj);
+    const savedAttribute = skillObj.specializationAttributes?.[normalizeName(valueStr)];
+    const hasUnlinkedAttribute = ATTRIBUTES.includes(savedAttribute) && !attributes.includes(savedAttribute);
+    const attribute = hasUnlinkedAttribute ? savedAttribute : specializationAttribute(skillObj, valueStr);
+    const code = abbreviatedAttribute(attribute);
+    const showAttribute = code && (attributes.length > 1 || hasUnlinkedAttribute);
+    const attributeTitle = hasUnlinkedAttribute ? ' title="Saved attribute is outside this skill’s linked attributes."' : '';
+    const classes = isCustom ? 'specialization-badge specialization-badge-custom' : 'specialization-badge';
     return [
-      `<span class="specialization-badge">${label}${code ? ` <span class="specialization-attribute">${code}</span>` : ''}`,
+      `<span class="${classes}">${label}${showAttribute ? ` <span class="specialization-attribute"${attributeTitle}>${code}</span>` : ''}`,
         `<button type="button" aria-label="Remove ${label}" title="Remove specialization" data-remove-specialization="${skillIndex}:${badgeIndex}">×</button>`,
       '</span>'
     ].join('');
   }
 
-  field(labelStr, pathStr, { type: typeStr = FIELD_KIND.Text, options: optionsArr, value, className: classNameStr, rows } = {}) {
+  field(labelStr, pathStr, { type: typeStr = FIELD_KIND.Text, options: optionsArr, value, className: classNameStr, rows, step } = {}) {
     const fieldValue = value ?? pathStr.split('.').reduce((recordObj, keyStr) => recordObj[keyStr], this.s);
     const optionAttribute = optionsArr ? this.fieldOptionsAttribute(optionsArr) : '';
     const classAttribute = classNameStr ? ` class="${classNameStr}"` : '';
     const rowsAttribute = rows ? ` rows="${rows}"` : '';
-    return `<runner-field label="${escapeHTML(labelStr)}" path="${escapeHTML(pathStr)}" value="${escapeHTML(fieldValue)}" kind="${typeStr}" ${optionAttribute}${classAttribute}${rowsAttribute}></runner-field>`;
+    const stepAttribute = step ? ` step="${escapeHTML(step)}"` : '';
+    return `<runner-field label="${escapeHTML(labelStr)}" path="${escapeHTML(pathStr)}" value="${escapeHTML(fieldValue)}" kind="${typeStr}" ${optionAttribute}${classAttribute}${rowsAttribute}${stepAttribute}></runner-field>`;
   }
 
   fieldOptionsAttribute(optionsArr) {
@@ -398,8 +418,8 @@ export class AnarchyBuilder extends HTMLElement {
 
   portraitControlsHTML(portraitStr) {
     return [
-      `<img class="portrait-preview" src="${escapeHTML(portraitStr)}" alt="Portrait">`,
-      `<button data-action="${ACTION.EditPortrait}">Adjust portrait</button>`,
+      `<button type="button" class="portrait-preview" id="portrait-preview" data-edit-portrait aria-label="Adjust character portrait"><img src="${escapeHTML(portraitStr)}" alt=""></button>`,
+      '<button type="button" id="adjust-portrait" data-edit-portrait>Adjust portrait</button>',
       `<button data-action="${ACTION.ClearPortrait}">Remove portrait</button>`
     ].join('');
   }
@@ -531,8 +551,9 @@ export class AnarchyBuilder extends HTMLElement {
   }
 
   knowledgeRowHTML(nameStr, index) {
+    const path = `${ENTRY_LIST.Knowledge}.${index}`;
     return this.entryRowHTML({ keyStr: ENTRY_LIST.Knowledge, index, nameStr: nameStr || 'knowledge skill', fieldsArr: [
-      this.field('Knowledge skill', `knowledge.${index}`),
+      this.rollableFieldHTML(this.field('Knowledge skill', path), path, `Knowledge skill ${index + 1}`),
       `<span class="cost">${money(2500)}</span>`
     ] });
   }
@@ -540,8 +561,8 @@ export class AnarchyBuilder extends HTMLElement {
   ampsHTML() {
     return [
       this.catalogPanelHTML(TAB.ShadowAmps, 'Search Shadow Amps'),
+      `<p class="muted" style="margin-bottom: 0;">Each Amp rating point costs 5,000¥. See ${SHADOW_AMP_RULES_SOURCE} for the general Amp rules.</p>`,
       `<div class="actions"><button data-action="${ACTION.AddAmp}">+ Custom Shadow Amp</button>${this.field('Essence', 'essence')}</div>`,
-      `<p class="muted">Each Amp rating point costs 5,000¥. See ${SHADOW_AMP_RULES_SOURCE} for the general Amp rules.</p>`,
       `<runner-entry-list data-reorder-list="${ENTRY_LIST.Amps}">`,
         ...this.s.amps.map((ampObj, index) => this.ampRowHTML(ampObj, index)),
       '</runner-entry-list>'
@@ -552,9 +573,9 @@ export class AnarchyBuilder extends HTMLElement {
     const path = `amps.${index}`;
     const source = ampObj.source || 'Custom shadow amp';
     return this.entryRowHTML({ keyStr: ENTRY_LIST.Amps, index, nameStr: ampObj.name || 'Shadow Amp', fieldsArr: [
-      this.field('Amp name', `${path}.name`),
+      this.field('Name', `${path}.name`),
       this.field('Rating', `${path}.rating`, { type: FIELD_KIND.Number, className: 'rating-field' }),
-      this.field('Effect / components', `${path}.notes`, { type: FIELD_KIND.Textarea, className: 'amp-notes', rows: 1 }),
+      this.field('Effect / components', `${path}.notes`, { type: FIELD_KIND.Textarea, rows: 1 }),
       `<span class="cost">${money(priceAmp(ampObj))}</span>`,
       this.infoHTML(`Source for ${ampObj.name || 'Shadow Amp'}`, source, `amp-source-${index}`)
     ] });
@@ -563,26 +584,30 @@ export class AnarchyBuilder extends HTMLElement {
   gearHTML() {
     return [
       this.catalogPanelHTML(TAB.Gear, 'Search rulebook catalog'),
+      `<p class="muted" style="margin-bottom: 1.24rem;">Each gear or spell rating point costs ${money(GEAR_RATING_PRICE)}.</p>`,
       `<div class="actions"><button data-action="${ACTION.AddItem}">+ Custom entry</button></div>`,
       `<runner-entry-list data-reorder-list="${ENTRY_LIST.Items}">`,
         ...this.s.items.map((_, index) => this.itemRowHTML(index)),
       '</runner-entry-list>',
-      '<p class="muted">Standard equipment and weapons cost 2,500¥. Expert weapons, spells and complex forms cost 5,000¥. Armor costs 2,500¥ per point.</p>'
     ].join('');
   }
 
   catalogPanelHTML(tabStr, searchLabelStr) {
     const filters = this.catalogFilters[tabStr];
-    const categories = (tabStr === TAB.Gear ? Object.keys(gearCatalog) : [...new Set(catalogs[tabStr].map(itemObj => itemObj.category))]).sort(compareNames);
+    const categories = [...new Set(catalogs[tabStr].map(itemObj => itemObj.category))].sort(compareNames);
     return catalogPanelHTML({ searchLabel: searchLabelStr, filters, categories, results: this.catalogHTML(tabStr) });
   }
 
   itemRowHTML(index) {
     const path = `items.${index}`;
-    return this.entryRowHTML({ keyStr: ENTRY_LIST.Items, index, nameStr: this.s.items[index].name || 'item', fieldsArr: [
+    const item = this.s.items[index];
+    const cost = +item.cost || 0;
+    const description = item.description ?? catalogDescription(catalogProfile(item.type, item.name));
+    return this.entryRowHTML({ keyStr: ENTRY_LIST.Items, index, nameStr: item.name || 'item', fieldsArr: [
       this.field('Name', `${path}.name`),
-      this.field('Description / type', `${path}.description`, { className: 'item-description' }),
-      this.field('Cost (¥)', `${path}.cost`, { type: FIELD_KIND.Number })
+      this.field('Rating', `${path}.rating`, { type: FIELD_KIND.Number, className: 'rating-field', step: 'any', value: cost / GEAR_RATING_PRICE }),
+      this.field('Description / type', `${path}.description`, { type: FIELD_KIND.Textarea, rows: 1, value: description }),
+      `<span class="cost">${money(cost)}</span>`
     ] });
   }
 
@@ -617,10 +642,12 @@ export class AnarchyBuilder extends HTMLElement {
   personalityHTML() {
     const groups = Object.entries(PERSONALITY_LABELS).map(([keyStr, labelStr]) => {
       const values = this.s[keyStr];
-      const inputs = Array.from({ length: Math.max(PERSONALITY_ENTRY_COUNT, values.length) }, (_, index) =>
-        inlineInputHTML(values[index], {
-          path: `${keyStr}.${index}`, label: `${labelStr} ${index + 1}`, maxLength: PERSONALITY_ENTRY_LENGTH
-        }));
+      const inputs = Array.from({ length: Math.max(PERSONALITY_ENTRY_COUNT, values.length) }, (_, index) => {
+        const path = `${keyStr}.${index}`;
+        const label = `${labelStr} ${index + 1}`;
+        const input = inlineInputHTML(values[index], { path, label, maxLength: PERSONALITY_ENTRY_LENGTH });
+        return this.rollableFieldHTML(input, path, label);
+      });
       return `<fieldset><legend>${labelStr}s</legend>${inputs.join('')}</fieldset>`;
     });
     return [
@@ -634,6 +661,12 @@ export class AnarchyBuilder extends HTMLElement {
     ].join('');
   }
 
+  rollableFieldHTML(fieldHTMLStr, pathStr, labelStr) {
+    const label = escapeHTML(labelStr.toLowerCase());
+    return `<div class="rollable-field">${fieldHTMLStr}` +
+      `<button type="button" data-roll-field="${escapeHTML(pathStr)}" aria-label="Roll ${label}">🎲</button></div>`;
+  }
+
   printPreviewHTML() {
     return [
       '<div class="actions">',
@@ -641,7 +674,8 @@ export class AnarchyBuilder extends HTMLElement {
         `<button data-action="${ACTION.ExportJSON}">Export JSON</button>`,
         `<button data-action="${ACTION.Generate}">Generate character</button>`,
       '</div>',
-      '<p class="muted">You can edit some fields on the character sheet. To save a PDF, choose “Save to PDF” in your browser’s print dialog.</p>',
+      '<p class="muted">You can edit some fields directly on the character sheet. To save a PDF, choose “Save to PDF” in your browser’s print dialog.</p>',
+      this.s.portrait ? '' : '<input type="file" id="portrait" accept="image/*" hidden>',
       '<div class="preview-frame" role="region" aria-label="Character sheet preview" tabindex="0"><runner-print-sheet id="sheetMount"></runner-print-sheet></div>'
     ].join('');
   }
@@ -708,13 +742,12 @@ export class AnarchyBuilder extends HTMLElement {
       [ampObj.name, ...(AMP_PROFILES[ampObj.name]?.replaces ?? [])]).map(normalizeName));
     const available = catalogs[tabStr].filter(itemObj => {
       if (category && itemObj.category !== category) return false;
-      if (!normalizeName([itemObj.name, itemObj.group, itemObj.category].join(' ')).includes(query)) return false;
+      if (!normalizeName([itemObj.name, itemObj.group, itemObj.category, itemObj.description].join(' ')).includes(query)) return false;
       if (itemObj.type === ITEM_TYPE.Amp) {
         return !ampNames.has(normalizeName(itemObj.name)) &&
           ![itemObj.name, ...(itemObj.replaces ?? [])].some(nameStr => itemNames.has(normalizeName(nameStr)));
       }
-      return !chosen.has(itemObj.type + '|' + itemObj.name) && !ampGear.has(normalizeName(itemObj.name)) &&
-        !(itemObj.type === ITEM_TYPE.Equipment && isFreeCommlink(itemObj.name));
+      return !chosen.has(itemObj.type + '|' + itemObj.name) && !ampGear.has(normalizeName(itemObj.name));
     });
     return available.sort(compareNamedEntries).map(itemObj => this.catalogItemHTML(itemObj)).join('') ||
       '<p>No available matches.</p>';
@@ -722,9 +755,9 @@ export class AnarchyBuilder extends HTMLElement {
 
   catalogItemHTML(itemObj) {
     const price = itemObj.cost;
-    const key = `${escapeHTML(itemObj.type)}|${escapeHTML(itemObj.name)}|${price}`;
+    const key = `${escapeHTML(itemObj.type)}|${escapeHTML(itemObj.name)}`;
     const label = escapeHTML(itemObj.name);
-    const cost = `${money(price)} · ${escapeHTML(itemObj.group)}`;
+    const cost = `${money(price)} · ${escapeHTML(catalogDescription(itemObj))}`;
     return `<runner-catalog-item data-catalog="${key}" label="${label}" cost="${cost}"></runner-catalog-item>`;
   }
   bind() {
@@ -759,10 +792,31 @@ export class AnarchyBuilder extends HTMLElement {
   bindFieldActions() {
     this.querySelectorAll('[data-path]').forEach(controlObj => {
       controlObj.onchange = () => this.changeField(controlObj);
+      if (controlObj.dataset.path.startsWith(`${ENTRY_LIST.Knowledge}.`)) controlObj.oninput = controlObj.onchange;
+    });
+    this.querySelectorAll('[data-roll-field]').forEach(buttonObj => {
+      buttonObj.onclick = () => this.rollField(buttonObj);
     });
     this.querySelectorAll('[data-action]').forEach(buttonObj => {
       buttonObj.onclick = () => this.handleAction(buttonObj.dataset.action);
     });
+  }
+
+  rollField(buttonObj) {
+    const [listKey, rowIndex] = buttonObj.dataset.rollField.split('.');
+    const input = buttonObj.parentElement.querySelector('input');
+    const entries = this.s[listKey];
+    const maxLength = input.maxLength;
+    const usedNames = new Set(entries.map(normalizeName));
+    const currentName = normalizeName(entries[rowIndex]);
+    const candidates = [...new Set(FIELD_ROLL_POOLS[listKey])].filter(valueStr =>
+      normalizeName(valueStr) !== currentName && (maxLength < 0 || valueStr.length <= maxLength));
+    const unused = candidates.filter(valueStr => !usedNames.has(normalizeName(valueStr)));
+    const value = pick(unused.length ? unused : candidates);
+    if (!value) return;
+
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   bindSkillAttributes() {
@@ -804,11 +858,18 @@ export class AnarchyBuilder extends HTMLElement {
       this.importJSON(file);
     };
     const portraitInput = this.querySelector('#portrait');
-    if (portraitInput) portraitInput.onchange = () => {
-      const file = portraitInput.files[0];
-      portraitInput.value = '';
-      this.editPortrait(file);
-    };
+    if (portraitInput) {
+      const pickPortrait = this.querySelector('[data-pick-portrait]');
+      if (pickPortrait) pickPortrait.onclick = () => portraitInput.click();
+      portraitInput.onchange = () => {
+        const file = portraitInput.files[0];
+        portraitInput.value = '';
+        this.editPortrait(file, pickPortrait?.id ?? portraitInput.id);
+      };
+    }
+    this.querySelectorAll('[data-edit-portrait]').forEach(buttonObj => {
+      buttonObj.onclick = () => this.editPortrait(this.s.portrait, buttonObj.id);
+    });
     const check = this.querySelector('[data-check]');
     if (check) check.onchange = () => {
       this.s.personality = check.checked;
@@ -833,6 +894,19 @@ export class AnarchyBuilder extends HTMLElement {
     const recordObj = partsArr.slice(0, -1).reduce((recordObj, keyStr) => recordObj[keyStr], this.s);
     const key = partsArr.at(-1);
 
+    if (partsArr[0] === ENTRY_LIST.Knowledge) return this.changeKnowledge(controlObj, Number(key), fieldValue);
+    if (partsArr[0] === ENTRY_LIST.Items && key === 'rating') {
+      const cost = priceGearRating(fieldValue);
+      if (!Number.isFinite(cost)) {
+        controlObj.value = (+recordObj.cost || 0) / GEAR_RATING_PRICE;
+        return;
+      }
+      recordObj.cost = cost;
+      controlObj.value = cost / GEAR_RATING_PRICE;
+      controlObj.closest('.entry').querySelector('.cost').textContent = money(cost);
+      this.updateBudget();
+      return;
+    }
     if (!this.prepareFieldChange({ partsArr, recordObj, fieldValue })) return;
     recordObj[key] = fieldValue;
     this.applyFieldDependencies(path, fieldValue);
@@ -843,6 +917,18 @@ export class AnarchyBuilder extends HTMLElement {
     if (path === FIELD_PATH.AlternateType || path === FIELD_PATH.AlternateAttribute) {
       this.querySelector(`[data-path="${path}"]`)?.focus();
     }
+  }
+
+  changeKnowledge(controlObj, index, valueStr) {
+    const entries = this.s.knowledge;
+    const wasPurchased = Boolean(entries[index].trim());
+    entries[index] = valueStr;
+    if (wasPurchased !== Boolean(valueStr.trim())) this.updateBudget();
+
+    const row = controlObj.closest('.entry');
+    const name = valueStr.trim() || 'knowledge skill';
+    row.querySelector('[data-remove]').setAttribute('aria-label', `Remove ${name}`);
+    row.querySelector('.reorder-handle')?.setAttribute('aria-label', `Reorder ${name}, row ${index + 1} of ${entries.length}`);
   }
 
   prepareFieldChange({ partsArr, recordObj, fieldValue }) {
@@ -884,7 +970,6 @@ export class AnarchyBuilder extends HTMLElement {
       case ACTION.AddKnowledge: return this.addKnowledge();
       case ACTION.AddAmp: return this.addCustomAmp();
       case ACTION.AddItem: return this.addCustomItem();
-      case ACTION.EditPortrait: return this.editPortrait(this.s.portrait);
       case ACTION.ClearPortrait: return this.clearPortrait();
     }
   }
@@ -922,7 +1007,7 @@ export class AnarchyBuilder extends HTMLElement {
   }
 
   addCustomItem() {
-    this.add(ENTRY_LIST.Items, { name: 'Custom item', type: ITEM_TYPE.Equipment, cost: 2500, description: '' });
+    this.add(ENTRY_LIST.Items, { name: 'Custom item', type: ITEM_TYPE.Equipment, cost: GEAR_RATING_PRICE, description: '' });
   }
 
   clearPortrait() {
@@ -987,18 +1072,14 @@ export class AnarchyBuilder extends HTMLElement {
     sheetObj.refreshRatings(this.s, inputObj, budgetObj.remaining);
   }
 
-  addCatalogItem({ type: typeStr, name: nameStr, cost }) {
+  addCatalogItem({ type: typeStr, name: nameStr }) {
     if (typeStr === ITEM_TYPE.Amp) {
       if (Object.hasOwn(AMP_PROFILES, nameStr)) this.add(ENTRY_LIST.Amps, makeAmp(nameStr));
       return;
     }
-    if (this.s.items.some(itemObj => itemObj.type === typeStr && itemObj.name === nameStr)) return;
-    this.add(ENTRY_LIST.Items, {
-      type: typeStr,
-      name: nameStr,
-      cost,
-      description: CATALOG[typeStr]?.find(itemObj => itemObj.name === nameStr)?.group || ''
-    });
+    if (!Object.hasOwn(CATALOG, nameStr) || CATALOG[nameStr].type !== typeStr ||
+        this.s.items.some(itemObj => itemObj.type === typeStr && itemObj.name === nameStr)) return;
+    this.add(ENTRY_LIST.Items, makeCatalogItem(nameStr));
   }
   print() {
     if (!printCharacter(this.s)) this.notify('Allow popups to print or save PDF.');

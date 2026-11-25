@@ -1,8 +1,8 @@
 import { AMP_PROFILES, EMERGED_AMP, makeAmp } from './data/amp-profiles.js';
 import { CONCEPTS, conceptsForRole } from './data/concepts.js';
 import { AMP_GROUP, ATTRIBUTES, ITEM_TYPE, KIT_KIND, LEVEL, LEVELS, LIMITS, METATYPE, RANDOM_CONCEPT, ROLE } from './data/rules.js';
-import { CATALOG } from './data/catalog.js';
-import { blank, calc, equipArmorAmp, isFreeCommlink, maxed, pick, priceSkill } from './model.js';
+import { CATALOG, catalogNames, catalogProfile, makeCatalogItem } from './data/catalog.js';
+import { blank, calc, equipArmorAmp, maxed, pick, priceSkill } from './model.js';
 import { SKILL, linkedAttributes, specializationCode, TASKING } from './specializations.js';
 
 import { KNOWLEDGE_SKILLS } from './data/knowledge.js';
@@ -70,9 +70,9 @@ function generatePersonality(characterObj, conceptObj) {
 function chooseStartingAmps(conceptObj) {
   const ampNames = [...conceptObj.amps];
   if (conceptObj.vehicleGroup) {
-    const vehicles = CATALOG[ITEM_TYPE.Vehicle];
-    const choices = conceptObj.vehicleGroup === ROLE.Any ? vehicles : vehicles.filter(vehicleObj => vehicleObj.group === conceptObj.vehicleGroup);
-    ampNames.push(pick(choices).name);
+    const vehicles = Object.entries(AMP_PROFILES).filter(([, { group, vehicleGroup }]) =>
+      group === AMP_GROUP.Vehicle && (conceptObj.vehicleGroup === ROLE.Any || vehicleGroup === conceptObj.vehicleGroup));
+    ampNames.push(pick(vehicles)[0]);
   }
   if (conceptObj.randomDrone) {
     const drones = Object.keys(AMP_PROFILES).filter(nameStr => {
@@ -90,27 +90,27 @@ function chooseStartingGear(characterObj, conceptObj, ampNamesArr) {
   const usedNamesSet = new Set(ampNamesArr.flatMap(nameStr => AMP_PROFILES[nameStr].replaces ?? []).map(normalizeCatalogName));
   if (isEmerged) ['Cyberdeck', 'Datajack', 'Trodes'].forEach(nameStr => usedNamesSet.add(normalizeCatalogName(nameStr)));
 
-  const addCatalogItem = (typeStr, itemObj) => {
-    if (!itemObj || usedNamesSet.has(normalizeCatalogName(itemObj.name))) return;
-    usedNamesSet.add(normalizeCatalogName(itemObj.name));
-    characterObj.items.push({ name: itemObj.name, type: typeStr, cost: itemObj.cost, description: itemObj.group || '' });
+  const addCatalogItem = nameStr => {
+    if (!Object.hasOwn(CATALOG, nameStr) || usedNamesSet.has(normalizeCatalogName(nameStr))) return;
+    usedNamesSet.add(normalizeCatalogName(nameStr));
+    characterObj.items.push(makeCatalogItem(nameStr));
   };
 
-  addCatalogItem(ITEM_TYPE.Armor, pick(CATALOG[ITEM_TYPE.Armor]));
+  addCatalogItem(pick(catalogNames(ITEM_TYPE.Armor)));
   const hasRangedFocus = conceptObj.skills.includes(SKILL.RangedWeapons);
   const weaponCount = !isAwakened && hasRangedFocus ? 2 : 1;
   const possibleWeapons = gearPool(ITEM_TYPE.Weapon, usedNamesSet);
-  const preferredWeapons = possibleWeapons.filter(itemObj =>
-    rangedWeapon({ type: ITEM_TYPE.Weapon, name: itemObj.name }) === hasRangedFocus);
+  const preferredWeapons = possibleWeapons.filter(nameStr =>
+    rangedWeapon({ type: ITEM_TYPE.Weapon, name: nameStr }) === hasRangedFocus);
   const weapons = pickUnique(preferredWeapons, weaponCount);
   if (!weapons.length) weapons.push(...pickUnique(possibleWeapons, 1));
-  weapons.forEach(itemObj => addCatalogItem(ITEM_TYPE.Weapon, itemObj));
+  weapons.forEach(addCatalogItem);
 
   const spellCount = conceptObj.spellCount ?? (isAwakened ? 2 : 0);
-  const spells = gearPool(ITEM_TYPE.Spell, usedNamesSet).filter(itemObj => !conceptObj.spellGroup || itemObj.group === conceptObj.spellGroup);
-  pickUnique(spells, spellCount).forEach(itemObj => addCatalogItem(ITEM_TYPE.Spell, itemObj));
+  const spells = gearPool(ITEM_TYPE.Spell, usedNamesSet).filter(nameStr => !conceptObj.spellGroup || CATALOG[nameStr].group === conceptObj.spellGroup);
+  pickUnique(spells, spellCount).forEach(addCatalogItem);
   if (isEmerged) {
-    pickUnique(gearPool(ITEM_TYPE.ComplexForm, usedNamesSet), 2).forEach(itemObj => addCatalogItem(ITEM_TYPE.ComplexForm, itemObj));
+    pickUnique(gearPool(ITEM_TYPE.ComplexForm, usedNamesSet), 2).forEach(addCatalogItem);
   }
   addStartingEquipment({ conceptObj, usedNamesSet, addCatalogItem });
 }
@@ -118,11 +118,11 @@ function chooseStartingGear(characterObj, conceptObj, ampNamesArr) {
 function addStartingEquipment({ conceptObj, usedNamesSet, addCatalogItem }) {
   const equipment = conceptObj.equipment ?? [];
   for (const name of equipment) {
-    addCatalogItem(ITEM_TYPE.Equipment, CATALOG[ITEM_TYPE.Equipment].find(itemObj => itemObj.name === name));
+    if (CATALOG[name]?.type === ITEM_TYPE.Equipment) addCatalogItem(name);
   }
-  const equipmentPool = gearPool(ITEM_TYPE.Equipment, usedNamesSet).filter(itemObj => !startingKitKind(itemObj.name));
+  const equipmentPool = gearPool(ITEM_TYPE.Equipment, usedNamesSet).filter(nameStr => !startingKitKind(nameStr));
   const equipmentCount = Math.max(0, Math.floor(Math.random() * 4) + 1 - equipment.length);
-  pickUnique(equipmentPool, equipmentCount).forEach(itemObj => addCatalogItem(ITEM_TYPE.Equipment, itemObj));
+  pickUnique(equipmentPool, equipmentCount).forEach(addCatalogItem);
 }
 
 function weaponSkill(groupStr = '') {
@@ -258,11 +258,14 @@ function trainConceptSkills({ characterObj, conceptObj, target }) {
 }
 
 function buyRequiredAmps(trainingObj, ampNamesArr) {
-  const { characterObj, canTrain, claimedSkillsSet } = trainingObj;
+  const { characterObj, conceptObj, canTrain, claimedSkillsSet } = trainingObj;
   for (const name of ampNamesArr) {
     const profile = AMP_PROFILES[name];
-    const training = getAmpTraining(profile, skillNameStr => canTrain(skillNameStr) ||
-      (skillNameStr === SKILL.Cracking && startingKitKind(name, profile) === KIT_KIND.Cyberdeck));
+    const selected = conceptObj.ampTrainingSelections?.[name];
+    const training = selected
+      ? { training: [...(profile.training ?? []), ...selected], selected }
+      : getAmpTraining(profile, skillNameStr => canTrain(skillNameStr) ||
+        (skillNameStr === SKILL.Cracking && startingKitKind(name, profile) === KIT_KIND.Cyberdeck));
     buyAmp({ runnerObj: characterObj, nameStr: name, planObj: training, trainingObj });
     reserveTraining(claimedSkillsSet, training);
   }
@@ -276,7 +279,7 @@ function buyStartingKit(trainingObj) {
   const ampKits = Object.entries(AMP_PROFILES)
     .filter(([nameStr, profileObj]) => startingKitKind(nameStr, profileObj) === kitKind)
     .map(([nameStr]) => ({ name: nameStr }));
-  const itemKits = CATALOG[ITEM_TYPE.Equipment].filter(itemObj => startingKitKind(itemObj.name) === kitKind);
+  const itemKits = catalogNames(ITEM_TYPE.Equipment).filter(nameStr => startingKitKind(nameStr) === kitKind).map(makeCatalogItem);
   const candidates = [...ampKits, ...itemKits];
   while (candidates.length) {
     const kit = candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
@@ -305,9 +308,7 @@ function addEquipmentKit(characterObj, kitObj, conceptObj) {
     ? equipment.findLast(itemObj => !conceptObj.equipment?.includes(itemObj.name))
     : undefined;
   if (equipment.length >= 4 && !replaced) return false;
-  characterObj.items = [...characterObj.items.filter(itemObj => itemObj !== replaced), {
-    name: kitObj.name, type: ITEM_TYPE.Equipment, cost: kitObj.cost, description: kitObj.group || ''
-  }];
+  characterObj.items = [...characterObj.items.filter(itemObj => itemObj !== replaced), kitObj];
   return true;
 }
 
@@ -424,14 +425,14 @@ function itemSortRank(itemObj) {
 }
 const rangedWeapon = itemObj => {
   if (itemObj.type !== ITEM_TYPE.Weapon) return false;
-  const record = CATALOG[ITEM_TYPE.Weapon]?.find(weaponObj => normalizeCatalogName(weaponObj.name) === normalizeCatalogName(itemObj.name));
+  const record = catalogProfile(ITEM_TYPE.Weapon, itemObj.name);
   const group = String(record?.group ?? '').toLowerCase();
   if (group.includes('melee')) return false;
   if (/(ranged|pistol|rifle|shotgun|smg|machine gun|launcher|bow|crossbow|throw)/.test(group)) return true;
   return /(pistol|rifle|shotgun|smg|machine gun|launcher|bow|crossbow|taser|revolver)/i.test(itemObj.name);
 };
-const gearPool = (typeStr, usedNamesSet) => (CATALOG[typeStr] || []).filter(itemObj => !usedNamesSet.has(normalizeCatalogName(itemObj.name)) && !(typeStr ===
-  ITEM_TYPE.Equipment && isFreeCommlink(itemObj.name)));
+const gearPool = (typeStr, usedNamesSet) => catalogNames(typeStr).filter(nameStr =>
+  !usedNamesSet.has(normalizeCatalogName(nameStr)));
 const pickUnique = (poolArr, count) => {
   const copy = [...poolArr],
     out = [];

@@ -7,8 +7,15 @@
 .sheet .overlay {
   position: absolute;
   font-family: Arial, sans-serif;
-  white-space: nowrap;
   overflow: hidden;
+}
+
+.sheet .overlay-knowledge {
+  height: 5%;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .sheet .portrait {
@@ -17,6 +24,9 @@
   top: 8.8%;
   width: 32.8%;
   aspect-ratio: 1;
+}
+
+.sheet :is(img.portrait, .portrait img) {
   object-fit: cover;
   mask: url("../../images/avatar-mask.webp") center / 100% 100% no-repeat;
   mask-mode: luminance;

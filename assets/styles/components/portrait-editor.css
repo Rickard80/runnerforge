@@ -48,8 +48,6 @@
     display: block;
     mask: url('../../images/avatar-mask.webp') center / 100% 100% no-repeat;
     mask-mode: luminance;
-    -webkit-mask: url('../../images/avatar-mask.webp') center / 100% 100% no-repeat;
-    -webkit-mask-mode: luminance;
   }
 }
 

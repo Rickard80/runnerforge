@@ -1,4 +1,4 @@
-.personality-fields input + input {
+.personality-fields .rollable-field + .rollable-field {
   margin-top: 8px;
 }
 

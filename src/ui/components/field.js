@@ -26,7 +26,7 @@ export class RunnerField extends HTMLElement {
       control.rows = Number(this.getAttribute('rows')) || 2;
     } else {
       control.type = kind;
-      if (control.type === FIELD_KIND.Number) control.step = '1';
+      if (control.type === FIELD_KIND.Number) control.step = this.getAttribute('step') || '1';
     }
     control.value = value || '';
     return control;

@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { AMP_PROFILES } from '../src/domain/data/amp-profiles.js';
+import { CATALOG } from '../src/domain/data/catalog.js';
 import { CONCEPTS } from '../src/domain/data/concepts.js';
-import { trainGeneratedRunner } from '../src/domain/generator.js';
+import { AMP_GROUP, ROLE } from '../src/domain/data/rules.js';
+import { generateCharacter, trainGeneratedRunner } from '../src/domain/generator.js';
 import { blank, calc } from '../src/domain/model.js';
+import { riskReductionState, riskReductionTarget, RR_SCOPE } from '../src/domain/risk-reduction.js';
 import { linkedAttributes, SKILLS, skillRule, specializationCode } from '../src/domain/specializations.js';
 
 globalThis.HTMLElement = class {};
@@ -22,8 +25,12 @@ for (const { training = [], trainingChoices = [] } of Object.values(AMP_PROFILES
   [...training, ...trainingChoices].forEach(checkTraining);
 }
 for (const concept of Object.values(CONCEPTS).flat()) {
+  for (const amp of concept.amps) assert(Object.hasOwn(AMP_PROFILES, amp), `${concept.name} references unknown amp ${amp}`);
   concept.skills.forEach(nameStr => checkTraining([nameStr, ...(concept.specializations?.[nameStr] ?? [])]));
 }
+const { characterObj: specialist } = generateCharacter({ ...blank(), role: ROLE.Muscle, concept: 'Weapons Specialist' });
+const rifles = riskReductionTarget(RR_SCOPE.Specialization, 'Ranged Weapons', 'Rifles').key;
+assert(riskReductionState(specialist).ampGrantsMap.get(rifles)?.sources.has('Reflex Recorder'));
 assert.equal(specializationCode('Sorcery', 'Health Spells'), 'W');
 assert.equal(specializationCode('Conjuring', 'Spirits of Kin'), 'L/C');
 assert.equal(specializationCode('Stealth', 'Lockpicking'), 'A/L');
@@ -113,16 +120,50 @@ app.s.items = [{ name: 'Medkit', type: 'equipment', description: 'Medical', cost
 assert.doesNotMatch(app.itemRowHTML(0), /path="items.0.type"/);
 assert.match(app.itemRowHTML(0), /label="Description \/ type" path="items.0.description"/);
 assert.match(app.specializationBadges(app.s.skills[0], 0), /Climbing <span class="specialization-attribute">STR<.*Parkour <span class="specialization-attribute">AGI</);
+const perception = skill('Perception', 3, ['Physical', 'Trail Signs']);
+assert.match(app.specializationPicker(perception, 0), /data-attribute="Logic">Astral<\/option>/);
+assert.doesNotMatch(app.specializationPicker(perception, 0), /\(LOG\)/);
+const perceptionBadges = app.specializationBadges(perception, 0);
+assert.match(perceptionBadges, /class="specialization-badge">Physical/);
+assert.match(perceptionBadges, /class="specialization-badge specialization-badge-custom">Trail Signs/);
+assert.doesNotMatch(perceptionBadges, /specialization-attribute/);
+perception.specializationAttributes = { 'trail signs': 'Agility' };
+assert.match(app.specializationBadges(perception, 0), /Trail Signs <span class="specialization-attribute"[^>]*>AGI<\/span>/);
 const gear = app.catalogPanelHTML('gear', 'Catalog');
-assert.match(gear, /value="Communication".*value="Drones".*value="General".*value="Medical".*value="Vehicle"/);
+assert.match(gear, /value="Communication".*value="Drones".*value="General".*value="Medical"/);
+assert.doesNotMatch(gear, /value="Vehicle"|Racing Bike/);
 app.catalogFilters.gear.category = 'General';
 const general = app.catalogHTML('gear');
 assert.match(general, /Electronics toolkit.*Lockpick set.*Tool kit/);
 assert.doesNotMatch(general, /Medkit|Racing Bike/);
 app.catalogFilters.gear.category = 'Medical';
 assert.match(app.catalogHTML('gear'), /DocWagon contract/);
-app.catalogFilters.gear.category = 'Vehicle';
-assert.match(app.catalogHTML('gear'), /data-catalog="amp\|Racing Bike\|5000"/);
+app.catalogFilters.magic.category = 'Vehicle';
+assert.match(app.catalogHTML('magic'), /data-catalog="amp\|Racing Bike" label="Racing Bike" cost="5,000¥/);
+for (const [name, profile] of Object.entries(AMP_PROFILES)) {
+  if (profile.group === AMP_GROUP.Vehicle) assert(!Object.hasOwn(CATALOG, name));
+}
+
+const gearApp = new AnarchyBuilder();
+gearApp.update = () => {};
+gearApp.addCatalogItem({ type: 'equipment', name: 'Medkit' });
+gearApp.addCatalogItem({ type: 'complex form', name: 'Mirrored Persona' });
+assert.equal(gearApp.s.items[0].description, 'Medical');
+assert.equal(gearApp.s.items[1].description, CATALOG['Mirrored Persona'].description);
+assert.match(gearApp.itemRowHTML(1), /label="Name".*label="Rating" path="items.1.rating" value="2".*label="Description \/ type".*class="cost">5,000¥.*data-remove="items.1"/);
+const price = {};
+let budget;
+gearApp.updateBudget = () => { budget = calc(gearApp.s); };
+gearApp.changeField({
+  dataset: { path: 'items.1.rating' },
+  type: 'number',
+  value: '3',
+  closest: () => ({ querySelector: () => price })
+});
+assert.equal(gearApp.s.items[1].cost, 7500);
+assert.equal(price.textContent, '7,500¥');
+assert.equal(budget.items, 10000);
+assert.match(printContentHTML(gearApp.s), /Mirrored Persona, Creates a virtual decoy/);
 
 const capped = blank();
 capped.level = 'Ganger';

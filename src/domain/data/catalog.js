@@ -1,6 +1,201 @@
+import { normalizeName } from '../names.js';
 import { ITEM_TYPE } from './rules.js';
-const equipmentByCategory = {
-  Communication: [
+
+export const GEAR_RATING_PRICE = 2500;
+
+const catalogGroup = ({ type, group, source, rating, names: namesArr }) =>
+  Object.fromEntries(namesArr.map(nameStr => [nameStr, { type, group, source, rating }]));
+
+export const CATALOG = {
+  "Infusion of Firewall": { type: ITEM_TYPE.ComplexForm, group: "Sustained", rating: 2, source: "Anarchy 2.0 Conversion Guide, p. 9",
+    description: "Protects against Matrix damage and biofeedback" },
+  "Mirrored Persona": { type: ITEM_TYPE.ComplexForm, group: "Sustained", rating: 2, source: "Anarchy 2.0 Conversion Guide, p. 9",
+    description: "Creates a virtual decoy" },
+
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Short melee", rating: 1, source: "pp. 142–148", names: [
+    "Survival knife",
+    "Brass knuckles",
+    "Cyber claws",
+    "Cyber blades",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Long melee", rating: 1, source: "pp. 142–148", names: [
+    "Sword",
+    "Rapier",
+    "Katana",
+    "Combat axe",
+    "Polearm",
+    "Nightstick",
+    "Extendable baton",
+    "Baseball bat",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Advanced melee", rating: 1, source: "pp. 142–148", names: [
+    "Stun baton",
+    "Stun gloves",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Throwing", rating: 1, source: "pp. 142–148", names: [
+    "Throwing knife",
+    "Shuriken",
+    "Chakram",
+    "Tomahawk",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Bow / crossbow", rating: 1, source: "pp. 142–148", names: [
+    "Bow",
+    "Crossbow",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Taser", rating: 1, source: "pp. 142–148", names: [
+    "Defiance Super Shock",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Taser", rating: 5, source: "pp. 142–148", names: [
+    "Yamaha Pulsar",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Hold-out pistol", rating: 5, source: "pp. 142–148", names: [
+    "Fichetti Tiffani Needler",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Hold-out pistol", rating: 1, source: "pp. 142–148", names: [
+    "Streetline Special",
+    "Walther Palm Pistol",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Light pistol", rating: 1, source: "pp. 142–148", names: [
+    "Ares Light Fire",
+    "Beretta 101T",
+    "Colt America L36",
+    "Fichetti Security 600",
+    "Ruger Redhawk",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Machine pistol", rating: 1, source: "pp. 142–148", names: [
+    "Ares Crusader II",
+    "Ceska Black Scorpion",
+    "Steyr TMP",
+    "Ares Super Squirt",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Heavy pistol", rating: 1, source: "pp. 142–148", names: [
+    "Ares Viper Slivergun",
+    "Browning Ultra Power",
+    "Colt Manhunter",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Heavy pistol", rating: 5, source: "pp. 142–148", names: [
+    "Ares Predator IV",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Heavy pistol", rating: 7, source: "pp. 142–148", names: [
+    "Ares Predator V",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Heavy pistol", rating: 11, source: "pp. 142–148", names: [
+    "Ares Predator VI",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Heavy pistol", rating: 3, source: "pp. 142–148", names: [
+    "Ruger Super Warhawk",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "SMG", rating: 1, source: "pp. 142–148", names: [
+    "Colt Cobra",
+    "HK-227",
+    "FN P93 Praetor",
+    "Uzi V",
+    "Ingram Smartgun",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Assault rifle", rating: 1, source: "pp. 142–148", names: [
+    "AK-97",
+    "Colt M23",
+    "FN HAR",
+    "Parashield DART rifle",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Shotgun", rating: 1, source: "pp. 142–148", names: [
+    "Defiance T-250",
+    "Mossberg CMDT",
+    "Remington Roomsweeper",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Sniper rifle", rating: 2, source: "pp. 142–148", names: [
+    "Ares Desert Strike",
+    "Remington 900",
+    "Barrett Model 122",
+    "Ranger Arms SM-6",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Machine gun", rating: 2, source: "pp. 142–148", names: [
+    "Ingram Valiant",
+    "Stoner-Ares M202",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Grenade", rating: 1, source: "pp. 142–148", names: [
+    "Fragmentation grenade",
+    "Flashbang grenade",
+    "Gas grenade",
+    "Smoke grenade",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Grenade launcher", rating: 2, source: "pp. 142–148", names: [
+    "Ares Antioch II",
+    "ArmTech MGL-6",
+    "ArmTech MGL-12",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Weapon, group: "Rocket launcher", rating: 2, source: "pp. 142–148", names: [
+    "Aztechnology Striker",
+    "Onotari Interceptor",
+  ] }),
+
+  ...catalogGroup({ type: ITEM_TYPE.Spell, group: "Combat", rating: 2, source: "pp. 180–184", names: [
+    "Manabolt",
+    "Stunbolt",
+    "Blast",
+    "Flamestrike",
+    "Lightning Bolt",
+    "Fireball",
+    "Powerbolt",
+    "Stunball",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Spell, group: "Detection", rating: 2, source: "pp. 180–184", names: [
+    "Analyze Magic",
+    "Analyze Truth",
+    "Mind Probe",
+    "Borrow Senses",
+    "Combat Sense",
+    "Detect Enemies",
+    "Detect Life",
+    "Detect Magic",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Spell, group: "Health", rating: 2, source: "pp. 180–184", names: [
+    "Heal",
+    "Increase Reflexes",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Spell, group: "Illusion", rating: 2, source: "pp. 180–184", names: [
+    "Chimera",
+    "Confusion",
+    "Invisibility",
+    "Mask",
+    "Silence",
+    "Phantasm",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Spell, group: "Manipulation", rating: 2, source: "pp. 180–184", names: [
+    "Control Thoughts",
+    "Armor",
+    "Astral Armor",
+    "Mystic Armor",
+    "Elemental Aura",
+    "Levitate",
+    "Physical Barrier",
+    "Mana Barrier",
+    "Dual Barrier",
+    "Shaping",
+    "Magic Fingers",
+  ] }),
+
+  ...catalogGroup({ type: ITEM_TYPE.Armor, group: "Armor", rating: 1, source: "pp. 148–149", names: [
+    "Armored clothing (1)",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Armor, group: "Armor", rating: 2, source: "pp. 148–149", names: [
+    "Lined coat (2)",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Armor, group: "Armor", rating: 3, source: "pp. 148–149", names: [
+    "Armor jacket (3)",
+    "Chameleon suit (3)",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Armor, group: "Armor", rating: 4, source: "pp. 148–149", names: [
+    "Full body armor (4)",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Armor, group: "Armor", rating: 5, source: "pp. 148–149", names: [
+    "Military armor (5)",
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Armor, group: "Armor", rating: 1, source: "pp. 148–149", names: [
+    "SecureTech Invisi-shield (1)",
+  ] }),
+
+  ...catalogGroup({ type: ITEM_TYPE.Equipment, group: "Communication", rating: 1, source: "Reference/example — verify exact price", names: [
     "Binoculars",
     "Bug scanner",
     "Camera",
@@ -12,14 +207,14 @@ const equipmentByCategory = {
     "RFID tags",
     "Thermographic goggles",
     "White-noise generator",
-  ],
-  Drones: [
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Equipment, group: "Drones", rating: 1, source: "Reference/example — verify exact price", names: [
     "Doberman drone",
     "Fly-Spy drone",
     "Microdrone",
     "Rotor drone",
-  ],
-  General: [
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Equipment, group: "General", rating: 1, source: "Reference/example — verify exact price", names: [
     "Backpack",
     "Climbing gear",
     "Disguise kit",
@@ -35,746 +230,49 @@ const equipmentByCategory = {
     "Rope",
     "Survival kit",
     "Tool kit",
-  ],
-  Magic: [
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Equipment, group: "Magic", rating: 1, source: "Reference/example — verify exact price", names: [
     "Magical lodge materials",
     "Reagents",
     "Spell focus",
     "Spirit focus",
-  ],
-  Matrix: [
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Equipment, group: "Matrix", rating: 1, source: "Reference/example — verify exact price", names: [
     "AR glasses",
     "Cyberdeck",
     "Datajack",
     "Electronics kit",
     "Trodes",
-  ],
-  Medical: [
+  ] }),
+  ...catalogGroup({ type: ITEM_TYPE.Equipment, group: "Medical", rating: 1, source: "Reference/example — verify exact price", names: [
     "Antidote kit",
     "Biotech kit",
     "DocWagon contract",
     "First aid supplies",
     "Medkit",
     "Trauma patch",
-  ],
+  ] }),
 };
 
-export const CATALOG = {
-  [ITEM_TYPE.Vehicle]: [
-    { name: 'Racing Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 4, Handling 2, Speed 6, Armor 0.' },
-    { name: 'Off-road Bike', group: 'Motorcycle', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 4, Handling 3, Speed 5, Armor 0.' },
-    { name: 'Combat Bike / Chopper', group: 'Motorcycle', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 0.' },
-    { name: 'Sports Car', group: 'Car', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 0.' },
-    { name: 'Sedan', group: 'Car', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 6, Handling 2, Speed 4, Armor 0.' },
-    { name: 'SUV / Pick-up', group: 'Car', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 7, Handling 1, Speed 4, Armor 0.' },
-    { name: 'Van', group: 'Van', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 8, Handling 1, Speed 3, Armor 0.' },
-    { name: 'Bus / Semi-trailer', group: 'Heavy vehicle', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 10, Handling 0, Speed 2, Armor 0.' },
-    { name: 'Jet-ski', group: 'Watercraft', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 5, Handling 5, Speed 2, Armor 0.' },
-    { name: 'Rigid Inflatable Boat', group: 'Watercraft', rating: 1, source: 'p. 238',
-      effect: 'Pilot 6, Body 5, Handling 4, Speed 3, Armor 0.' },
-    { name: 'Horizon-Doble Revolution Bike', group: 'Motorcycle', rating: 2, source: 'p. 238',
-      effect: 'Pilot 6, Body 5, Handling 2, Speed 6, Armor 0.' },
-    { name: 'Harley-Davidson Centaur', group: 'Motorcycle', rating: 4, source: 'p. 238',
-      effect: 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 3.' },
-    { name: 'Mitsubishi Nightsky', group: 'Car', rating: 9, source: 'p. 238',
-      effect: 'Pilot 6, Body 7, Handling 2, Speed 4, Armor 5. RR 1 on Influence Tests when present.' },
-    { name: 'Artemis Industries Nightwing', group: 'Aircraft', rating: 4, source: 'p. 238',
-      effect: 'Pilot 6, Body 3, Handling 7, Speed 4, Armor 0. Flying. RR 1 on Stealth (physical) Tests.' },
-    { name: 'Reinforced Ford Americar', group: 'Car', rating: 2, source: 'p. 91 (Wild Jane)',
-      effect: 'Sedan. Pilot 6, Body 6, Handling 2, Speed 4, Armor 1. Forward weapon mount.' },
-    { name: 'Eurocar Northstar 2.0', group: 'Car', rating: 6, source: 'p. 97 (Charon)',
-      effect: 'SUV. Pilot 6, Body 7, Handling 1, Speed 4, Armor 1. RR 1 on Piloting (cars). Smuggling compartment and concealed forward weapon mount.' }
-  ],
-  [ITEM_TYPE.ComplexForm]: [
-    {
-      "name": "Infusion of Firewall",
-      "cost": 5000,
-      "group": "Sustained · protects against Matrix damage and biofeedback",
-      "source": "Anarchy 2.0 Conversion Guide, p. 9"
-    },
-    {
-      "name": "Mirrored Persona",
-      "cost": 5000,
-      "group": "Sustained · creates a virtual decoy",
-      "source": "Anarchy 2.0 Conversion Guide, p. 9"
-    }
-  ],
-  [ITEM_TYPE.Weapon]: [
-    {
-      "name": "Survival knife",
-      "cost": 2500,
-      "group": "Short melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Brass knuckles",
-      "cost": 2500,
-      "group": "Short melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Cyber claws",
-      "cost": 2500,
-      "group": "Short melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Cyber blades",
-      "cost": 2500,
-      "group": "Short melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Sword",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Rapier",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Katana",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Combat axe",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Polearm",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Nightstick",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Extendable baton",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Baseball bat",
-      "cost": 2500,
-      "group": "Long melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Stun baton",
-      "cost": 2500,
-      "group": "Advanced melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Stun gloves",
-      "cost": 2500,
-      "group": "Advanced melee",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Throwing knife",
-      "cost": 2500,
-      "group": "Throwing",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Shuriken",
-      "cost": 2500,
-      "group": "Throwing",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Chakram",
-      "cost": 2500,
-      "group": "Throwing",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Tomahawk",
-      "cost": 2500,
-      "group": "Throwing",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Bow",
-      "cost": 2500,
-      "group": "Bow / crossbow",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Crossbow",
-      "cost": 2500,
-      "group": "Bow / crossbow",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Defiance Super Shock",
-      "cost": 2500,
-      "group": "Taser",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Yamaha Pulsar",
-      "cost": 12500,
-      "group": "Taser",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Fichetti Tiffani Needler",
-      "cost": 12500,
-      "group": "Hold-out pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Streetline Special",
-      "cost": 2500,
-      "group": "Hold-out pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Walther Palm Pistol",
-      "cost": 2500,
-      "group": "Hold-out pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Light Fire",
-      "cost": 2500,
-      "group": "Light pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Beretta 101T",
-      "cost": 2500,
-      "group": "Light pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Colt America L36",
-      "cost": 2500,
-      "group": "Light pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Fichetti Security 600",
-      "cost": 2500,
-      "group": "Light pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ruger Redhawk",
-      "cost": 2500,
-      "group": "Light pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Crusader II",
-      "cost": 2500,
-      "group": "Machine pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ceska Black Scorpion",
-      "cost": 2500,
-      "group": "Machine pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Steyr TMP",
-      "cost": 2500,
-      "group": "Machine pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Super Squirt",
-      "cost": 2500,
-      "group": "Machine pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Viper Slivergun",
-      "cost": 2500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Browning Ultra Power",
-      "cost": 2500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Colt Manhunter",
-      "cost": 2500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Predator IV",
-      "cost": 12500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Predator V",
-      "cost": 17500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Predator VI",
-      "cost": 27500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ruger Super Warhawk",
-      "cost": 7500,
-      "group": "Heavy pistol",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Colt Cobra",
-      "cost": 2500,
-      "group": "SMG",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "HK-227",
-      "cost": 2500,
-      "group": "SMG",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "FN P93 Praetor",
-      "cost": 2500,
-      "group": "SMG",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Uzi V",
-      "cost": 2500,
-      "group": "SMG",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ingram Smartgun",
-      "cost": 2500,
-      "group": "SMG",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "AK-97",
-      "cost": 2500,
-      "group": "Assault rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Colt M23",
-      "cost": 2500,
-      "group": "Assault rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "FN HAR",
-      "cost": 2500,
-      "group": "Assault rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Parashield DART rifle",
-      "cost": 2500,
-      "group": "Assault rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Defiance T-250",
-      "cost": 2500,
-      "group": "Shotgun",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Mossberg CMDT",
-      "cost": 2500,
-      "group": "Shotgun",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Remington Roomsweeper",
-      "cost": 2500,
-      "group": "Shotgun",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Desert Strike",
-      "cost": 5000,
-      "group": "Sniper rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Remington 900",
-      "cost": 5000,
-      "group": "Sniper rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Barrett Model 122",
-      "cost": 5000,
-      "group": "Sniper rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ranger Arms SM-6",
-      "cost": 5000,
-      "group": "Sniper rifle",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ingram Valiant",
-      "cost": 5000,
-      "group": "Machine gun",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Stoner-Ares M202",
-      "cost": 5000,
-      "group": "Machine gun",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Fragmentation grenade",
-      "cost": 2500,
-      "group": "Grenade",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Flashbang grenade",
-      "cost": 2500,
-      "group": "Grenade",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Gas grenade",
-      "cost": 2500,
-      "group": "Grenade",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Smoke grenade",
-      "cost": 2500,
-      "group": "Grenade",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Ares Antioch II",
-      "cost": 5000,
-      "group": "Grenade launcher",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "ArmTech MGL-6",
-      "cost": 5000,
-      "group": "Grenade launcher",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "ArmTech MGL-12",
-      "cost": 5000,
-      "group": "Grenade launcher",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Aztechnology Striker",
-      "cost": 5000,
-      "group": "Rocket launcher",
-      "source": "pp. 142–148"
-    },
-    {
-      "name": "Onotari Interceptor",
-      "cost": 5000,
-      "group": "Rocket launcher",
-      "source": "pp. 142–148"
-    }
-  ],
-  [ITEM_TYPE.Spell]: [
-    {
-      "name": "Manabolt",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Stunbolt",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Blast",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Flamestrike",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Lightning Bolt",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Fireball",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Powerbolt",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Stunball",
-      "cost": 5000,
-      "group": "Combat",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Analyze Magic",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Analyze Truth",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Mind Probe",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Borrow Senses",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Combat Sense",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Detect Enemies",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Detect Life",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Detect Magic",
-      "cost": 5000,
-      "group": "Detection",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Heal",
-      "cost": 5000,
-      "group": "Health",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Increase Reflexes",
-      "cost": 5000,
-      "group": "Health",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Chimera",
-      "cost": 5000,
-      "group": "Illusion",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Confusion",
-      "cost": 5000,
-      "group": "Illusion",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Invisibility",
-      "cost": 5000,
-      "group": "Illusion",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Mask",
-      "cost": 5000,
-      "group": "Illusion",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Silence",
-      "cost": 5000,
-      "group": "Illusion",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Phantasm",
-      "cost": 5000,
-      "group": "Illusion",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Control Thoughts",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Armor",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Astral Armor",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Mystic Armor",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Elemental Aura",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Levitate",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Physical Barrier",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Mana Barrier",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Dual Barrier",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Shaping",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    },
-    {
-      "name": "Magic Fingers",
-      "cost": 5000,
-      "group": "Manipulation",
-      "source": "pp. 180–184"
-    }
-  ],
-  [ITEM_TYPE.Armor]: [
-    {
-      "name": "Armored clothing (1)",
-      "cost": 2500,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    },
-    {
-      "name": "Lined coat (2)",
-      "cost": 5000,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    },
-    {
-      "name": "Armor jacket (3)",
-      "cost": 7500,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    },
-    {
-      "name": "Chameleon suit (3)",
-      "cost": 7500,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    },
-    {
-      "name": "Full body armor (4)",
-      "cost": 10000,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    },
-    {
-      "name": "Military armor (5)",
-      "cost": 12500,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    },
-    {
-      "name": "SecureTech Invisi-shield (1)",
-      "cost": 2500,
-      "group": "Armor",
-      "source": "pp. 148–149"
-    }
-  ],
-  [ITEM_TYPE.Equipment]: Object.entries(equipmentByCategory).flatMap(([groupStr, namesArr]) =>
-    namesArr.map(nameStr => ({ name: nameStr, group: groupStr, cost: 2500, source: 'Reference/example — verify exact price' }))
-  )
-};
+const namesByType = new Map();
+const namesByNormalizedName = new Map();
+for (const [name, { type }] of Object.entries(CATALOG)) {
+  if (!namesByType.has(type)) namesByType.set(type, []);
+  namesByType.get(type).push(name);
+  namesByNormalizedName.set(normalizeName(name), name);
+}
+
+export const catalogNames = typeStr => namesByType.get(typeStr) ?? [];
+
+export function catalogProfile(typeStr, nameStr) {
+  const profile = CATALOG[namesByNormalizedName.get(normalizeName(nameStr))];
+  return profile?.type === typeStr ? profile : undefined;
+}
+
+export const catalogDescription = profileObj => profileObj?.description || profileObj?.group || '';
+export const priceGearRating = rating => Math.round(rating * GEAR_RATING_PRICE);
+
+export function makeCatalogItem(nameStr) {
+  const profile = CATALOG[nameStr];
+  return { name: nameStr, type: profile.type, cost: priceGearRating(profile.rating), description: catalogDescription(profile) };
+}

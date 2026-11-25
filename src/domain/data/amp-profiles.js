@@ -1,5 +1,4 @@
 import { AMP_GROUP } from './rules.js';
-import { CATALOG } from './catalog.js';
 import { SKILL, SKILLS, TASKING, specializationOptions } from '../specializations.js';
 
 export const TECHNOMANCER_SOURCE = 'Anarchy 2.0 Conversion Guide, pp. 8–10';
@@ -75,7 +74,6 @@ export const AMP_PROFILES = {
     ['Universal Omnitech PrimeSkill Reflex Recorder', 6, 'Choose a physical skill specialization. RR 2 on its Tests.', { trainingChoices: physicalTrainingChoices }],
     ['Evo ReflexUltra Reflex Recorders', 8, 'Choose a physical skill specialization. RR 3 on its Tests.', { trainingChoices: physicalTrainingChoices }],
     ['Platelet Factories', 8, 'One additional serious wound box.'],
-    ['Reflex Recorder (Rifles)', 4, 'RR 1 on Ranged Weapons (rifles) Tests, using the published specialization choice.', { training: [[SKILL.RangedWeapons, 'Rifles']] }],
     ['Tailored Pheromones', 7, 'RR 1 on Influence Tests.', { training: [[SKILL.Influence]] }]
   ], defaultsObj: { essenceLoss: 0.5 } }),
   ...coreAmps({ groupStr: AMP_GROUP.Contact, sourceStr: 'p. 164', examplesArr: [
@@ -256,15 +254,28 @@ export const AMP_PROFILES = {
   ...coreAmps({ groupStr: AMP_GROUP.Awakened, sourceStr: TECHNOMANCER_SOURCE, examplesArr: [
     [EMERGED_AMP, 7, 'Living persona with AR and hot-sim VR. Firewall uses Willpower and Attack uses Charisma. Use Cracking with the living persona. Tasking threads complex forms and compiles sprites. Matrix damage becomes biofeedback. Tasking can cause fading.', { unlocks: [TASKING], training: [[SKILL.Cracking], [TASKING]] }]
   ] }),
-  ...Object.fromEntries(CATALOG.vehicle.map(({ name: nameStr, rating, source: sourceStr, effect: effectStr }) =>
-    [nameStr, {
-      group: AMP_GROUP.Vehicle, rating, source: sourceStr, effect: effectStr,
-      ...({
-        'Eurocar Northstar 2.0': { training: [[SKILL.Piloting, 'Cars']] },
-        'Mitsubishi Nightsky': { training: [[SKILL.Influence]] },
-        'Artemis Industries Nightwing': { training: [[SKILL.Stealth, 'Physical Sneaking']] }
-      }[nameStr] ?? {})
-    }]))
+  ...coreAmps({ groupStr: AMP_GROUP.Vehicle, sourceStr: 'p. 238', examplesArr: [
+    ['Racing Bike', 1, 'Pilot 6, Body 4, Handling 2, Speed 6, Armor 0.', { vehicleGroup: 'Motorcycle' }],
+    ['Off-road Bike', 1, 'Pilot 6, Body 4, Handling 3, Speed 5, Armor 0.', { vehicleGroup: 'Motorcycle' }],
+    ['Combat Bike / Chopper', 1, 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 0.', { vehicleGroup: 'Motorcycle' }],
+    ['Sports Car', 1, 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 0.', { vehicleGroup: 'Car' }],
+    ['Sedan', 1, 'Pilot 6, Body 6, Handling 2, Speed 4, Armor 0.', { vehicleGroup: 'Car' }],
+    ['SUV / Pick-up', 1, 'Pilot 6, Body 7, Handling 1, Speed 4, Armor 0.', { vehicleGroup: 'Car' }],
+    ['Van', 1, 'Pilot 6, Body 8, Handling 1, Speed 3, Armor 0.', { vehicleGroup: 'Van' }],
+    ['Bus / Semi-trailer', 1, 'Pilot 6, Body 10, Handling 0, Speed 2, Armor 0.', { vehicleGroup: 'Heavy vehicle' }],
+    ['Jet-ski', 1, 'Pilot 6, Body 5, Handling 5, Speed 2, Armor 0.', { vehicleGroup: 'Watercraft' }],
+    ['Rigid Inflatable Boat', 1, 'Pilot 6, Body 5, Handling 4, Speed 3, Armor 0.', { vehicleGroup: 'Watercraft' }],
+    ['Horizon-Doble Revolution Bike', 2, 'Pilot 6, Body 5, Handling 2, Speed 6, Armor 0.', { vehicleGroup: 'Motorcycle' }],
+    ['Harley-Davidson Centaur', 4, 'Pilot 6, Body 5, Handling 2, Speed 5, Armor 3.', { vehicleGroup: 'Motorcycle' }],
+    ['Mitsubishi Nightsky', 9, 'Pilot 6, Body 7, Handling 2, Speed 4, Armor 5. RR 1 on Influence Tests when present.', { vehicleGroup: 'Car', training: [[SKILL.Influence]] }],
+    ['Artemis Industries Nightwing', 4, 'Pilot 6, Body 3, Handling 7, Speed 4, Armor 0. Flying. RR 1 on Stealth (physical) Tests.', { vehicleGroup: 'Aircraft', training: [[SKILL.Stealth, 'Physical Sneaking']] }]
+  ] }),
+  ...coreAmps({ groupStr: AMP_GROUP.Vehicle, sourceStr: 'p. 91', examplesArr: [
+    ['Reinforced Ford Americar', 2, 'Sedan. Pilot 6, Body 6, Handling 2, Speed 4, Armor 1. Forward weapon mount.', { vehicleGroup: 'Car' }]
+  ] }),
+  ...coreAmps({ groupStr: AMP_GROUP.Vehicle, sourceStr: 'p. 97', examplesArr: [
+    ['Eurocar Northstar 2.0', 6, 'SUV. Pilot 6, Body 7, Handling 1, Speed 4, Armor 1. RR 1 on Piloting (cars). Smuggling compartment and concealed forward weapon mount.', { vehicleGroup: 'Car', training: [[SKILL.Piloting, 'Cars']] }]
+  ] })
 };
 
 export function makeAmp(nameStr) {

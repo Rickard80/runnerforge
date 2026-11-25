@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+if [ -x /opt/homebrew/bin/node ]; then
+  exec /opt/homebrew/bin/node --test tests/*.mjs
+fi
+
+exec node --test tests/*.mjs
